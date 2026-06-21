@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { CheckCircle2, Circle } from 'lucide-react'
+import { CheckCircle2, Circle, RefreshCw } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { getCheckInsByDate, getToday } from '@/utils/date'
+import { getCheckInsByDate, getToday, getMonthlyMakeupCount, isWithinMakeupRange } from '@/utils/date'
 import HeatmapCalendar from '@/components/HeatmapCalendar'
+import CheckInModal from '@/components/CheckInModal'
+import { MAX_MAKEUP_PER_MONTH } from '@/utils/constants'
 import {
   Dumbbell, BookOpen, Droplets, Moon, Apple, Brain, Heart,
   FootprintsIcon, Music, Pencil, Flame, Sun, Coffee, Bike,
@@ -10,6 +12,7 @@ import {
   Clock, TrendingUp, Pilcrow, Ear, Eye, Hand, Shield, Wind,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import type { Habit } from '@/types'
 
 const iconMap: Record<string, LucideIcon> = {
   Dumbbell, BookOpen, Droplets, Moon, Apple, Brain, Heart,
@@ -22,16 +25,26 @@ export default function Calendar() {
   const { checkIns, habits, checkIn, uncheckIn } = useAppStore()
   const today = getToday()
   const [selectedDate, setSelectedDate] = useState<string>(today)
+  const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null)
 
   const dayCheckIns = getCheckInsByDate(selectedDate, checkIns)
   const completedHabitIds = new Set(dayCheckIns.map(c => c.habitId))
+  const makeupCount = getMonthlyMakeupCount(checkIns)
+  const isToday = selectedDate === today
+  const canMakeupDate = !isToday && isWithinMakeupRange(selectedDate)
 
-  const handleToggle = (habitId: string) => {
-    if (completedHabitIds.has(habitId)) {
-      uncheckIn(habitId, selectedDate)
-    } else {
-      checkIn(habitId, selectedDate)
+  const handleToggle = (habit: Habit) => {
+    if (completedHabitIds.has(habit.id)) {
+      uncheckIn(habit.id, selectedDate)
+    } else if (isToday) {
+      checkIn(habit.id, selectedDate)
+    } else if (canMakeupDate) {
+      setSelectedHabit(habit)
     }
+  }
+
+  const handleHabitClick = (habit: Habit) => {
+    setSelectedHabit(habit)
   }
 
   const formattedDate = (() => {
@@ -39,6 +52,10 @@ export default function Calendar() {
     const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
     return `${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`
   })()
+
+  const getCheckInForHabit = (habitId: string) => {
+    return dayCheckIns.find(c => c.habitId === habitId)
+  }
 
   return (
     <div className="min-h-screen bg-[#FFFDF7] pb-24">
@@ -48,7 +65,15 @@ export default function Calendar() {
 
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-gray-800">{formattedDate}</h3>
+            <div>
+              <h3 className="text-base font-semibold text-gray-800">{formattedDate}</h3>
+              {!isToday && canMakeupDate && (
+                <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                  <RefreshCw size={12} />
+                  可补卡 · 本月已补 {makeupCount}/{MAX_MAKEUP_PER_MONTH} 次
+                </p>
+              )}
+            </div>
             <input
               type="date"
               value={selectedDate}
@@ -65,19 +90,25 @@ export default function Calendar() {
             <div className="space-y-2">
               {habits.map(habit => {
                 const isCompleted = completedHabitIds.has(habit.id)
+                const checkInRecord = getCheckInForHabit(habit.id)
+                const isMakeup = checkInRecord?.type === 'makeup'
                 const IconComponent = iconMap[habit.icon] || Star
                 const isFuture = selectedDate > today
 
                 return (
                   <div
                     key={habit.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
+                    onClick={() => !isFuture && handleHabitClick(habit)}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 cursor-pointer ${
                       isCompleted ? 'bg-emerald-50' : 'hover:bg-gray-50'
-                    } ${isFuture ? 'opacity-40' : ''}`}
+                    } ${isFuture ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
                     <button
-                      onClick={() => !isFuture && handleToggle(habit.id)}
-                      disabled={isFuture}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!isFuture) handleToggle(habit)
+                      }}
+                      disabled={isFuture || (!isToday && !canMakeupDate && !isCompleted)}
                       className="shrink-0"
                     >
                       {isCompleted ? (
@@ -89,7 +120,11 @@ export default function Calendar() {
                       ) : (
                         <Circle
                           size={22}
-                          className="text-gray-300 hover:text-gray-400 transition-colors"
+                          className={`transition-colors ${
+                            isFuture || (!isToday && !canMakeupDate)
+                              ? 'text-gray-200'
+                              : 'text-gray-300 hover:text-gray-400'
+                          }`}
                         />
                       )}
                     </button>
@@ -99,15 +134,46 @@ export default function Calendar() {
                     >
                       <IconComponent size={16} />
                     </div>
-                    <span className={`text-sm font-medium ${isCompleted ? 'text-gray-800' : 'text-gray-500'}`}>
-                      {habit.name}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium truncate ${isCompleted ? 'text-gray-800' : 'text-gray-500'}`}>
+                          {habit.name}
+                        </span>
+                        {isMakeup && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-0.5 shrink-0">
+                            <RefreshCw size={10} />
+                            补卡
+                          </span>
+                        )}
+                      </div>
+                      {checkInRecord && (checkInRecord.checkInTime || checkInRecord.location) && (
+                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                          {checkInRecord.checkInTime && (
+                            <span className="flex items-center gap-0.5">
+                              <Clock size={10} />
+                              {checkInRecord.checkInTime}
+                            </span>
+                          )}
+                          {checkInRecord.location && (
+                            <span className="flex items-center gap-0.5 truncate">
+                              <span className="shrink-0">📍</span>
+                              <span className="truncate">{checkInRecord.location}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {isCompleted && (
                       <span
-                        className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full"
+                        className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
                         style={{ backgroundColor: habit.color + '20', color: habit.color }}
                       >
-                        已完成
+                        {isMakeup ? '已补卡' : '已完成'}
+                      </span>
+                    )}
+                    {!isCompleted && canMakeupDate && (
+                      <span className="text-xs text-amber-600 shrink-0">
+                        可补卡
                       </span>
                     )}
                   </div>
@@ -132,6 +198,14 @@ export default function Calendar() {
           )}
         </div>
       </div>
+
+      {selectedHabit && (
+        <CheckInModal
+          habit={selectedHabit}
+          date={selectedDate}
+          onClose={() => setSelectedHabit(null)}
+        />
+      )}
     </div>
   )
 }

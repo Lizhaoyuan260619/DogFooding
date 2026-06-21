@@ -12,6 +12,7 @@ import type {
   Comment,
   NewPostData,
   CircleStats,
+  CheckInData,
 } from '@/types'
 import {
   DEFAULT_CATEGORIES,
@@ -22,7 +23,7 @@ import {
   EXP_PER_CHECKIN,
   EXP_PER_POST,
 } from '@/utils/constants'
-import { generateId, getToday, getStreak } from '@/utils/date'
+import { generateId, getToday, getStreak, canMakeupCheckIn } from '@/utils/date'
 
 interface AppStore {
   habits: Habit[]
@@ -41,8 +42,10 @@ interface AppStore {
   updateHabit: (id: string, updates: Partial<Habit>) => void
   deleteHabit: (id: string) => void
 
-  checkIn: (habitId: string, date: string) => void
+  checkIn: (habitId: string, date: string, data?: CheckInData) => void
   uncheckIn: (habitId: string, date: string) => void
+  makeupCheckIn: (habitId: string, date: string, data?: CheckInData) => { success: boolean; reason?: string }
+  canMakeup: (habitId: string, date: string) => { canMakeup: boolean; reason?: string }
 
   addCategory: (category: Omit<Category, 'id'>) => void
   deleteCategory: (id: string) => void
@@ -123,7 +126,7 @@ export const useAppStore = create<AppStore>()(
         }))
       },
 
-      checkIn: (habitId, date) => {
+      checkIn: (habitId, date, data) => {
         const exists = get().checkIns.some(
           (c) => c.habitId === habitId && c.date === date
         )
@@ -132,6 +135,10 @@ export const useAppStore = create<AppStore>()(
           id: generateId(),
           habitId,
           date,
+          type: 'normal',
+          remark: data?.remark || undefined,
+          checkInTime: data?.checkInTime || undefined,
+          location: data?.location || undefined,
           createdAt: new Date().toISOString(),
         }
         set((state) => ({ checkIns: [...state.checkIns, checkIn] }))
@@ -145,6 +152,33 @@ export const useAppStore = create<AppStore>()(
             (c) => !(c.habitId === habitId && c.date === date)
           ),
         }))
+      },
+
+      makeupCheckIn: (habitId, date, data) => {
+        const { checkIns } = get()
+        const result = canMakeupCheckIn(habitId, date, checkIns)
+        if (!result.canMakeup) {
+          return { success: false, reason: result.reason }
+        }
+        const checkIn: CheckIn = {
+          id: generateId(),
+          habitId,
+          date,
+          type: 'makeup',
+          remark: data?.remark || undefined,
+          checkInTime: data?.checkInTime || undefined,
+          location: data?.location || undefined,
+          makeupAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        }
+        set((state) => ({ checkIns: [...state.checkIns, checkIn] }))
+        get().addExp(EXP_PER_CHECKIN)
+        get().checkAndUnlockBadges()
+        return { success: true }
+      },
+
+      canMakeup: (habitId, date) => {
+        return canMakeupCheckIn(habitId, date, get().checkIns)
       },
 
       addCategory: (categoryData) => {
@@ -511,6 +545,7 @@ export const useAppStore = create<AppStore>()(
                 id: generateId() + i + habit.id,
                 habitId: habit.id,
                 date: dateStr,
+                type: 'normal',
                 createdAt: d.toISOString(),
               })
             }

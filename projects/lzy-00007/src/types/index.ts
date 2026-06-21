@@ -13,11 +13,24 @@ export interface Habit {
   updatedAt: string
 }
 
+export type CheckInType = 'normal' | 'makeup'
+
 export interface CheckIn {
   id: string
   habitId: string
   date: string
+  type: CheckInType
+  remark?: string
+  checkInTime?: string
+  location?: string
+  makeupAt?: string
   createdAt: string
+}
+
+export interface CheckInData {
+  remark?: string
+  checkInTime?: string
+  location?: string
 }
 
 export interface Category {

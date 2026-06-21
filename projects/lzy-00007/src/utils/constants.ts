@@ -274,3 +274,8 @@ export const EXP_PER_LEVEL = 100
 export const EXP_PER_CHECKIN = 10
 export const EXP_PER_POST = 5
 export const EXP_PER_LIKE = 2
+
+export const MAX_MAKEUP_DAYS = 7
+export const MAX_MAKEUP_PER_MONTH = 3
+export const MAX_REMARK_LENGTH = 200
+export const MAX_LOCATION_LENGTH = 50

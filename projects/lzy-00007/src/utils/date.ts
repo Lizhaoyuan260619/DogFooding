@@ -1,5 +1,6 @@
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, differenceInDays } from 'date-fns'
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, differenceInDays, startOfDay } from 'date-fns'
 import type { CheckIn, Habit } from '@/types'
+import { MAX_MAKEUP_DAYS, MAX_MAKEUP_PER_MONTH } from '@/utils/constants'
 
 export function getToday(): string {
   return format(new Date(), 'yyyy-MM-dd')
@@ -134,4 +135,58 @@ export function isSameDateStr(d1: Date, d2: string): boolean {
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9)
+}
+
+export function isWithinMakeupRange(date: string): boolean {
+  const today = startOfDay(new Date())
+  const targetDate = parseISO(date)
+  const daysDiff = differenceInDays(today, targetDate)
+  return daysDiff >= 0 && daysDiff < MAX_MAKEUP_DAYS
+}
+
+export function getMonthlyMakeupCount(checkIns: CheckIn[], yearMonth?: string): number {
+  const targetYearMonth = yearMonth || format(new Date(), 'yyyy-MM')
+  return checkIns.filter(c => {
+    if (c.type !== 'makeup') return false
+    const checkInMonth = c.date.substring(0, 7)
+    return checkInMonth === targetYearMonth
+  }).length
+}
+
+export function canMakeupCheckIn(habitId: string, date: string, checkIns: CheckIn[]): { canMakeup: boolean; reason?: string } {
+  if (!isWithinMakeupRange(date)) {
+    return { canMakeup: false, reason: `仅可补打最近${MAX_MAKEUP_DAYS}天内的打卡` }
+  }
+
+  if (isCheckedIn(habitId, date, checkIns)) {
+    return { canMakeup: false, reason: '该日期已打卡' }
+  }
+
+  const monthlyCount = getMonthlyMakeupCount(checkIns)
+  if (monthlyCount >= MAX_MAKEUP_PER_MONTH) {
+    return { canMakeup: false, reason: `每月最多补卡${MAX_MAKEUP_PER_MONTH}次` }
+  }
+
+  return { canMakeup: true }
+}
+
+export function isValidCheckInTime(time: string, date: string): boolean {
+  if (!time || !/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)) {
+    return false
+  }
+  const today = getToday()
+  return date <= today
+}
+
+export function getMakeupDatesAvailable(habitId: string, checkIns: CheckIn[]): string[] {
+  const result: string[] = []
+  const today = new Date()
+  for (let i = 0; i < MAX_MAKEUP_DAYS; i++) {
+    const d = subDays(today, i)
+    const dateStr = formatDate(d)
+    if (!isCheckedIn(habitId, dateStr, checkIns)) {
+      result.push(dateStr)
+    }
+  }
+  return result
 }
