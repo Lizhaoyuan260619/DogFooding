@@ -1,7 +1,9 @@
-let layerManager, commandHistory, canvasRenderer, socketClient;
+let layerManager, commandHistory, canvasRenderer, socketClient, voiceChatManager;
 let currentUserId, currentUserName, currentUserColor, currentRoomCode;
 let users = [];
 let remoteCursors = {};
+let voiceEnabled = false;
+let voiceParticipants = [];
 
 const toolNames = {
     'pen': '画笔',
@@ -34,6 +36,7 @@ function initApp() {
         initCoreInstances();
         initUI();
         initSocket();
+        initVoiceManagerSocket();
         initUIEventBindings();
         loadInitialData();
     } catch (err) {
@@ -56,6 +59,15 @@ function initCoreInstances() {
         canvasRenderer.setUser(currentUserId, currentUserName);
         
         socketClient = new SocketClient();
+
+        if (VoiceChatManager.isSupported()) {
+            voiceChatManager = new VoiceChatManager(socketClient, {
+                userId: currentUserId,
+                userName: currentUserName,
+                userColor: currentUserColor,
+                roomCode: currentRoomCode
+            });
+        }
     } catch (err) {
         console.error('initCoreInstances error:', err);
         throw err;
@@ -84,6 +96,12 @@ function initSocket() {
     socketClient.setOnCursorUpdateCallback(handleRemoteCursor);
     socketClient.setOnUndoCallback(handleRemoteUndo);
     socketClient.setOnRedoCallback(handleRemoteRedo);
+}
+
+function initVoiceManagerSocket() {
+    if (voiceChatManager && socketClient.socket) {
+        voiceChatManager.initSocket(socketClient.socket);
+    }
 }
 
 function initUIEventBindings() {
@@ -162,6 +180,52 @@ function initUIEventBindings() {
     canvasRenderer.setOnCursorMoveCallback(handleLocalCursorMove);
     
     commandHistory.setOnChangeCallback(updateHistoryButtons);
+
+    if (voiceChatManager) {
+        initVoiceEventBindings();
+    }
+}
+
+function initVoiceEventBindings() {
+    document.getElementById('voiceJoinBtn').addEventListener('click', toggleVoiceChat);
+    document.getElementById('voiceMuteBtn').addEventListener('click', toggleVoiceMute);
+    document.getElementById('voiceLeaveBtn').addEventListener('click', leaveVoiceChat);
+    document.getElementById('voiceMuteAllBtn').addEventListener('click', toggleMuteAll);
+
+    const pttBtn = document.getElementById('voicePTTBtn');
+    pttBtn.addEventListener('mousedown', () => {
+        voiceChatManager.setPTTActive(true);
+        pttBtn.classList.add('is-ptt-active');
+    });
+    pttBtn.addEventListener('mouseup', () => {
+        voiceChatManager.setPTTActive(false);
+        pttBtn.classList.remove('is-ptt-active');
+    });
+    pttBtn.addEventListener('mouseleave', () => {
+        voiceChatManager.setPTTActive(false);
+        pttBtn.classList.remove('is-ptt-active');
+    });
+    pttBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        voiceChatManager.setPTTActive(true);
+        pttBtn.classList.add('is-ptt-active');
+    });
+    pttBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        voiceChatManager.setPTTActive(false);
+        pttBtn.classList.remove('is-ptt-active');
+    });
+
+    voiceChatManager.setOnJoinedCallback(handleVoiceJoined);
+    voiceChatManager.setOnLeftCallback(handleVoiceLeft);
+    voiceChatManager.setOnParticipantJoinedCallback(handleVoiceParticipantJoined);
+    voiceChatManager.setOnParticipantLeftCallback(handleVoiceParticipantLeft);
+    voiceChatManager.setOnSpeakingChangeCallback(handleVoiceSpeakingChange);
+    voiceChatManager.setOnMuteChangeCallback(handleVoiceMuteChange);
+    voiceChatManager.setOnStateChangeCallback(updateVoicePeerList);
+    voiceChatManager.setOnErrorCallback(handleVoiceError);
+    voiceChatManager.setOnVolumeChangeCallback(handleVoiceVolumeChange);
+    voiceChatManager.setOnConnectionStateChangeCallback(handleVoiceConnectionStateChange);
 }
 
 function loadInitialData() {
@@ -461,6 +525,9 @@ function copyRoomCode() {
 
 function leaveRoom() {
     if (confirm('确定要离开房间吗？')) {
+        if (voiceChatManager && voiceEnabled) {
+            voiceChatManager.leave();
+        }
         sessionStorage.clear();
         socketClient.disconnect();
         window.location.href = '/';
@@ -478,4 +545,275 @@ function showToast(message, type = 'info') {
         toast.classList.add('fade-out');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+async function toggleVoiceChat() {
+    if (!voiceChatManager) {
+        showToast('您的浏览器不支持语音对讲功能', 'error');
+        return;
+    }
+
+    if (!voiceEnabled) {
+        const result = await voiceChatManager.join();
+        if (!result.success) {
+            showToast(result.error, 'error');
+        }
+    } else {
+        await leaveVoiceChat();
+    }
+}
+
+async function leaveVoiceChat() {
+    if (voiceChatManager) {
+        await voiceChatManager.leave();
+    }
+}
+
+function toggleVoiceMute() {
+    if (voiceChatManager) {
+        voiceChatManager.toggleMute();
+    }
+}
+
+async function toggleMuteAll() {
+    if (!voiceChatManager || !voiceChatManager.isAdmin) return;
+
+    const allMuted = voiceParticipants
+        .filter(p => p.userId !== currentUserId)
+        .every(p => p.isMuted);
+
+    const result = await voiceChatManager.muteAll(!allMuted);
+    if (result.success) {
+        showToast(allMuted ? '已解除全体静音' : '已全体静音', 'success');
+    } else {
+        showToast(result.error, 'error');
+    }
+}
+
+function handleVoiceJoined(participants) {
+    voiceEnabled = true;
+    voiceParticipants = participants;
+
+    document.getElementById('voiceJoinBtn').style.display = 'none';
+    document.getElementById('voicePTTBtn').style.display = 'flex';
+    document.getElementById('voiceMuteBtn').style.display = 'flex';
+    document.getElementById('voiceLeaveBtn').style.display = 'flex';
+    document.getElementById('voiceAudioMeter').style.display = 'block';
+    document.getElementById('voicePeerList').style.display = 'flex';
+
+    if (voiceChatManager.isAdmin) {
+        document.getElementById('voiceAdminControls').style.display = 'flex';
+    }
+
+    updateVoiceStatus('connected');
+    updateVoicePeerList();
+    showToast('已加入语音对讲', 'success');
+}
+
+function handleVoiceLeft() {
+    voiceEnabled = false;
+    voiceParticipants = [];
+
+    document.getElementById('voiceJoinBtn').style.display = 'flex';
+    document.getElementById('voicePTTBtn').style.display = 'none';
+    document.getElementById('voiceMuteBtn').style.display = 'none';
+    document.getElementById('voiceLeaveBtn').style.display = 'none';
+    document.getElementById('voiceAudioMeter').style.display = 'none';
+    document.getElementById('voiceAdminControls').style.display = 'none';
+    document.getElementById('voicePeerList').style.display = 'none';
+
+    document.getElementById('voiceMuteBtn').classList.remove('is-muted');
+    document.getElementById('voiceMuteBtn').innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+        静音
+    `;
+
+    updateVoiceStatus('disconnected');
+    updateVoicePeerList();
+    showToast('已离开语音对讲', 'info');
+}
+
+function handleVoiceParticipantJoined(user) {
+    const existing = voiceParticipants.find(p => p.userId === user.userId);
+    if (!existing) {
+        voiceParticipants.push(user);
+    }
+    updateVoicePeerList();
+    showToast(`${user.userName} 加入了语音`, 'success');
+}
+
+function handleVoiceParticipantLeft(userId, newAdminId) {
+    voiceParticipants = voiceParticipants.filter(p => p.userId !== userId);
+
+    if (newAdminId === currentUserId && !voiceChatManager.isAdmin) {
+        voiceChatManager.isAdmin = true;
+        document.getElementById('voiceAdminControls').style.display = 'flex';
+        showToast('你已成为语音管理员', 'info');
+    }
+
+    updateVoicePeerList();
+    showToast('有用户离开了语音', 'warning');
+}
+
+function handleVoiceSpeakingChange(userId, isSpeaking) {
+    const participant = voiceParticipants.find(p => p.userId === userId);
+    if (participant) {
+        participant.isSpeaking = isSpeaking;
+    }
+    updateVoicePeerList();
+}
+
+function handleVoiceMuteChange(userId, isMuted, isForced) {
+    if (userId === currentUserId) {
+        const muteBtn = document.getElementById('voiceMuteBtn');
+        if (isMuted) {
+            muteBtn.classList.add('is-muted');
+            muteBtn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <line x1="23" y1="9" x2="17" y2="15"/>
+                    <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+                解除静音
+            `;
+            updateVoiceStatus('muted');
+        } else {
+            muteBtn.classList.remove('is-muted');
+            muteBtn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                静音
+            `;
+            updateVoiceStatus('connected');
+        }
+
+        if (isForced) {
+            showToast(isMuted ? '管理员已将你静音' : '管理员已解除你的静音', 'warning');
+        }
+    }
+
+    const participant = voiceParticipants.find(p => p.userId === userId);
+    if (participant) {
+        participant.isMuted = isMuted;
+    }
+
+    updateVoicePeerList();
+}
+
+function handleVoiceError(errorMessage) {
+    showToast(errorMessage, 'error');
+}
+
+function handleVoiceVolumeChange(userId, volume) {
+    if (userId === currentUserId) {
+        const meterFill = document.getElementById('voiceMeterFill');
+        meterFill.style.width = (volume * 100) + '%';
+
+        if (volume > 0.5) {
+            meterFill.classList.add('is-active');
+        } else {
+            meterFill.classList.remove('is-active');
+        }
+    }
+}
+
+function handleVoiceConnectionStateChange(state) {
+    updateVoiceStatus(state);
+}
+
+function updateVoiceStatus(state) {
+    const statusDot = document.getElementById('voiceStatusDot');
+    const statusText = document.getElementById('voiceStatusText');
+
+    statusDot.className = 'voice-status-dot';
+
+    switch (state) {
+        case 'connected':
+            statusDot.classList.add('voice-status-connected');
+            statusText.textContent = '已连接';
+            break;
+        case 'connecting':
+            statusDot.classList.add('voice-status-connecting');
+            statusText.textContent = '连接中...';
+            break;
+        case 'reconnecting':
+            statusDot.classList.add('voice-status-connecting');
+            statusText.textContent = '重连中...';
+            break;
+        case 'muted':
+            statusDot.classList.add('voice-status-muted');
+            statusText.textContent = '已静音';
+            break;
+        case 'speaking':
+            statusDot.classList.add('voice-status-speaking');
+            statusText.textContent = '讲话中';
+            break;
+        case 'disconnected':
+        default:
+            statusDot.classList.add('voice-status-disconnected');
+            statusText.textContent = '未连接';
+            break;
+    }
+}
+
+function updateVoicePeerList() {
+    const container = document.getElementById('voicePeerList');
+
+    if (!voiceEnabled || voiceParticipants.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); font-size: 11px; text-align: center; padding: 8px;">暂无参与者</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    voiceParticipants.forEach(participant => {
+        const isCurrentUser = participant.userId === currentUserId;
+        const peerEl = document.createElement('div');
+        peerEl.className = 'voice-peer-item';
+
+        let stateClass = 'is-idle';
+        let stateText = '空闲';
+
+        if (participant.isSpeaking && !participant.isMuted) {
+            stateClass = 'is-speaking';
+            stateText = '讲话中';
+        } else if (participant.isMuted) {
+            stateClass = 'is-muted';
+            stateText = '静音';
+        }
+
+        peerEl.innerHTML = `
+            <div class="voice-peer-avatar" style="background: ${participant.userColor}">
+                ${participant.userName.charAt(0).toUpperCase()}
+            </div>
+            <div class="voice-peer-name">
+                ${participant.userName}${isCurrentUser ? ' (你)' : ''}
+                ${participant.isAdmin ? '<span style="color: var(--warning-color); font-size: 9px;"> 管理员</span>' : ''}
+            </div>
+            <div class="voice-peer-state">
+                <span class="voice-peer-state-dot ${stateClass}"></span>
+                ${stateText}
+            </div>
+        `;
+
+        if (voiceChatManager.isAdmin && !isCurrentUser) {
+            peerEl.style.cursor = 'pointer';
+            peerEl.addEventListener('click', async () => {
+                const newMuteState = !participant.isMuted;
+                const result = await voiceChatManager.muteUser(participant.userId, newMuteState);
+                if (result.success) {
+                    showToast(newMuteState ? `已静音 ${participant.userName}` : `已解除 ${participant.userName} 的静音`, 'success');
+                } else {
+                    showToast(result.error, 'error');
+                }
+            });
+        }
+
+        container.appendChild(peerEl);
+    });
 }

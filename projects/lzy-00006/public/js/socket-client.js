@@ -13,6 +13,14 @@ class SocketClient {
         this.onCursorUpdateCallback = null;
         this.onUndoCallback = null;
         this.onRedoCallback = null;
+
+        this.onVoiceUserJoinedCallback = null;
+        this.onVoiceUserLeftCallback = null;
+        this.onVoiceStateCallback = null;
+        this.onVoiceSignalCallback = null;
+        this.onVoiceMuteForcedCallback = null;
+        this.onVoiceSpeakingChangeCallback = null;
+        this.onVoiceNetworkUpdateCallback = null;
     }
     
     connect() {
@@ -65,6 +73,48 @@ class SocketClient {
         this.socket.on('history:redo', (data) => {
             if (this.onRedoCallback) {
                 this.onRedoCallback(data);
+            }
+        });
+
+        this.socket.on('voice:user-joined', (data) => {
+            if (this.onVoiceUserJoinedCallback) {
+                this.onVoiceUserJoinedCallback(data);
+            }
+        });
+
+        this.socket.on('voice:user-left', (data) => {
+            if (this.onVoiceUserLeftCallback) {
+                this.onVoiceUserLeftCallback(data);
+            }
+        });
+
+        this.socket.on('voice:state', (data) => {
+            if (this.onVoiceStateCallback) {
+                this.onVoiceStateCallback(data);
+            }
+        });
+
+        this.socket.on('voice:signal', (data) => {
+            if (this.onVoiceSignalCallback) {
+                this.onVoiceSignalCallback(data);
+            }
+        });
+
+        this.socket.on('voice:mute-forced', (data) => {
+            if (this.onVoiceMuteForcedCallback) {
+                this.onVoiceMuteForcedCallback(data);
+            }
+        });
+
+        this.socket.on('voice:speaking-change', (data) => {
+            if (this.onVoiceSpeakingChangeCallback) {
+                this.onVoiceSpeakingChangeCallback(data);
+            }
+        });
+
+        this.socket.on('voice:network-update', (data) => {
+            if (this.onVoiceNetworkUpdateCallback) {
+                this.onVoiceNetworkUpdateCallback(data);
             }
         });
     }
@@ -159,6 +209,101 @@ class SocketClient {
     
     setOnRedoCallback(callback) {
         this.onRedoCallback = callback;
+    }
+
+    setOnVoiceUserJoinedCallback(callback) {
+        this.onVoiceUserJoinedCallback = callback;
+    }
+
+    setOnVoiceUserLeftCallback(callback) {
+        this.onVoiceUserLeftCallback = callback;
+    }
+
+    setOnVoiceStateCallback(callback) {
+        this.onVoiceStateCallback = callback;
+    }
+
+    setOnVoiceSignalCallback(callback) {
+        this.onVoiceSignalCallback = callback;
+    }
+
+    setOnVoiceMuteForcedCallback(callback) {
+        this.onVoiceMuteForcedCallback = callback;
+    }
+
+    setOnVoiceSpeakingChangeCallback(callback) {
+        this.onVoiceSpeakingChangeCallback = callback;
+    }
+
+    setOnVoiceNetworkUpdateCallback(callback) {
+        this.onVoiceNetworkUpdateCallback = callback;
+    }
+
+    sendVoiceJoin(roomCode) {
+        return new Promise((resolve, reject) => {
+            this.socket.emit('voice:join', { roomCode }, (response) => {
+                if (response.success) {
+                    resolve(response);
+                } else {
+                    reject(new Error(response.error || '加入语音失败'));
+                }
+            });
+        });
+    }
+
+    sendVoiceLeave(roomCode) {
+        return new Promise((resolve, reject) => {
+            this.socket.emit('voice:leave', { roomCode }, (response) => {
+                if (response.success) {
+                    resolve(response);
+                } else {
+                    reject(new Error(response.error || '离开语音失败'));
+                }
+            });
+        });
+    }
+
+    sendVoiceMute(roomCode, isMuted, targetUserId = null) {
+        return new Promise((resolve, reject) => {
+            const data = { roomCode, isMuted };
+            if (targetUserId) {
+                data.targetUserId = targetUserId;
+            }
+            this.socket.emit('voice:mute', data, (response) => {
+                if (response.success) {
+                    resolve(response);
+                } else {
+                    reject(new Error(response.error || '操作失败'));
+                }
+            });
+        });
+    }
+
+    sendVoiceMuteAll(roomCode, isMuted) {
+        return new Promise((resolve, reject) => {
+            this.socket.emit('voice:mute-all', { roomCode, isMuted }, (response) => {
+                if (response.success) {
+                    resolve(response);
+                } else {
+                    reject(new Error(response.error || '操作失败'));
+                }
+            });
+        });
+    }
+
+    sendVoiceSpeaking(roomCode, isSpeaking) {
+        if (!this.socket || !roomCode) return;
+        this.socket.emit('voice:speaking', { roomCode, isSpeaking });
+    }
+
+    sendVoiceSignal(targetUserId, data) {
+        if (!this.socket) return;
+        this.socket.emit('voice:signal', { targetUserId, data });
+    }
+
+    sendVoiceNetworkStats(roomCode, stats) {
+        if (!this.socket || !roomCode) return;
+        this.socket.emit('voice:network-stats', { roomCode, stats });
     }
     
     getUserInfo() {

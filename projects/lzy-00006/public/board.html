@@ -165,6 +165,64 @@
                 </div>
 
                 <div class="panel">
+                    <h3 class="section-title">语音对讲</h3>
+                    <div id="voicePanel" class="voice-panel">
+                        <div class="voice-status">
+                            <span id="voiceStatusDot" class="voice-status-dot voice-status-disconnected"></span>
+                            <span id="voiceStatusText" class="voice-status-text">未连接</span>
+                        </div>
+                        <div class="voice-controls">
+                            <button id="voiceJoinBtn" class="voice-btn voice-btn-join">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                    <line x1="8" y1="23" x2="16" y2="23"/>
+                                </svg>
+                                加入语音
+                            </button>
+                            <button id="voicePTTBtn" class="voice-btn voice-btn-ptt" style="display:none">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                </svg>
+                                按住说话
+                            </button>
+                            <button id="voiceMuteBtn" class="voice-btn voice-btn-mute" style="display:none">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                                静音
+                            </button>
+                            <button id="voiceLeaveBtn" class="voice-btn voice-btn-leave" style="display:none">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="23" y1="9" x2="17" y2="15"/>
+                                    <line x1="17" y1="9" x2="23" y2="15"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="voiceAudioMeter" class="voice-audio-meter" style="display:none">
+                            <div class="voice-meter-track">
+                                <div id="voiceMeterFill" class="voice-meter-fill"></div>
+                            </div>
+                        </div>
+                        <div id="voiceAdminControls" class="voice-controls" style="display:none">
+                            <button id="voiceMuteAllBtn" class="voice-btn" style="flex:1">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M17 8v4a5 5 0 0 1-10 0V8"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                                全体静音
+                            </button>
+                        </div>
+                        <div id="voicePeerList" class="voice-peer-list" style="display:none"></div>
+                    </div>
+                </div>
+
+                <div class="panel">
                     <h3 class="section-title">在线用户</h3>
                     <div id="userList" class="user-list"></div>
                 </div>
@@ -186,6 +244,7 @@
     <script src="/js/commands.js"></script>
     <script src="/js/canvas-renderer.js"></script>
     <script src="/js/socket-client.js"></script>
+    <script src="/js/voice-manager.js"></script>
     <script src="/js/app.js"></script>
 </body>
 </html>
