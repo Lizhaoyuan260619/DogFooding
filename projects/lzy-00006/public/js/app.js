@@ -1,9 +1,7 @@
 let layerManager, commandHistory, canvasRenderer, socketClient;
-let voiceClient;
 let currentUserId, currentUserName, currentUserColor, currentRoomCode;
 let users = [];
 let remoteCursors = {};
-let voicePeers = new Map();
 
 const toolNames = {
     'pen': '画笔',
@@ -17,40 +15,51 @@ const toolNames = {
 document.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
-    const roomCode = sessionStorage.getItem('whiteboard_roomCode');
-    const userId = sessionStorage.getItem('whiteboard_userId');
-    const userName = sessionStorage.getItem('whiteboard_userName');
-    const userColor = sessionStorage.getItem('whiteboard_userColor');
-    
-    if (!roomCode || !userId || !userName) {
-        window.location.href = '/';
-        return;
+    try {
+        const roomCode = sessionStorage.getItem('whiteboard_roomCode');
+        const userId = sessionStorage.getItem('whiteboard_userId');
+        const userName = sessionStorage.getItem('whiteboard_userName');
+        const userColor = sessionStorage.getItem('whiteboard_userColor');
+        
+        if (!roomCode || !userId || !userName) {
+            window.location.href = '/';
+            return;
+        }
+        
+        currentUserId = userId;
+        currentUserName = userName;
+        currentUserColor = userColor;
+        currentRoomCode = roomCode;
+        
+        initCoreInstances();
+        initUI();
+        initSocket();
+        initUIEventBindings();
+        loadInitialData();
+    } catch (err) {
+        console.error('initApp error:', err);
     }
-    
-    currentUserId = userId;
-    currentUserName = userName;
-    currentUserColor = userColor;
-    currentRoomCode = roomCode;
-    
-    initCoreInstances();
-    initUI();
-    initSocket();
-    initUIEventBindings();
-    loadInitialData();
 }
 
 function initCoreInstances() {
-    const canvasWidth = 1920;
-    const canvasHeight = 1080;
-    
-    layerManager = new LayerManager(5, canvasWidth, canvasHeight);
-    commandHistory = new CommandHistory();
-    
-    const container = document.getElementById('canvasContainer');
-    canvasRenderer = new CanvasRenderer(container, layerManager, commandHistory);
-    canvasRenderer.setUser(currentUserId, currentUserName);
-    
-    socketClient = new SocketClient();
+    try {
+        const canvasWidth = 1920;
+        const canvasHeight = 1080;
+        
+        layerManager = new LayerManager(5, canvasWidth, canvasHeight);
+        
+        commandHistory = new CommandHistory();
+        
+        const container = document.getElementById('canvasContainer');
+        
+        canvasRenderer = new CanvasRenderer(container, layerManager, commandHistory);
+        canvasRenderer.setUser(currentUserId, currentUserName);
+        
+        socketClient = new SocketClient();
+    } catch (err) {
+        console.error('initCoreInstances error:', err);
+        throw err;
+    }
 }
 
 function initUI() {
@@ -75,8 +84,6 @@ function initSocket() {
     socketClient.setOnCursorUpdateCallback(handleRemoteCursor);
     socketClient.setOnUndoCallback(handleRemoteUndo);
     socketClient.setOnRedoCallback(handleRemoteRedo);
-
-    initVoice();
 }
 
 function initUIEventBindings() {
@@ -155,8 +162,6 @@ function initUIEventBindings() {
     canvasRenderer.setOnCursorMoveCallback(handleLocalCursorMove);
     
     commandHistory.setOnChangeCallback(updateHistoryButtons);
-
-    initVoiceEventBindings();
 }
 
 function loadInitialData() {
@@ -456,243 +461,10 @@ function copyRoomCode() {
 
 function leaveRoom() {
     if (confirm('确定要离开房间吗？')) {
-        if (voiceClient) {
-            voiceClient.leave();
-        }
         sessionStorage.clear();
         socketClient.disconnect();
         window.location.href = '/';
     }
-}
-
-function initVoice() {
-    voiceClient = new VoiceClient(socketClient.socket);
-
-    voiceClient.setOnStatusChangeCallback(handleVoiceStatusChange);
-    voiceClient.setOnPeerJoinedCallback(handleVoicePeerJoined);
-    voiceClient.setOnPeerLeftCallback(handleVoicePeerLeft);
-    voiceClient.setOnPeerMuteStatusCallback(handleVoicePeerMuteStatus);
-    voiceClient.setOnPeerSpeakingCallback(handleVoicePeerSpeaking);
-    voiceClient.setOnAudioLevelCallback(handleVoiceAudioLevel);
-}
-
-function initVoiceEventBindings() {
-    document.getElementById('voiceJoinBtn').addEventListener('click', handleVoiceJoin);
-    document.getElementById('voiceMuteBtn').addEventListener('click', handleVoiceMuteToggle);
-
-    const pttBtn = document.getElementById('voicePTTBtn');
-    pttBtn.addEventListener('mousedown', handleVoicePTTStart);
-    pttBtn.addEventListener('mouseup', handleVoicePTTStop);
-    pttBtn.addEventListener('mouseleave', handleVoicePTTStop);
-    pttBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleVoicePTTStart(); });
-    pttBtn.addEventListener('touchend', (e) => { e.preventDefault(); handleVoicePTTStop(); });
-
-    document.getElementById('voiceLeaveBtn').addEventListener('click', handleVoiceLeave);
-
-    document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && voiceClient && voiceClient.isJoined && !e.target.closest('input, textarea, [contenteditable]')) {
-            e.preventDefault();
-            voiceClient.startPTT();
-            const pttBtn = document.getElementById('voicePTTBtn');
-            if (pttBtn) pttBtn.classList.add('is-ptt-active');
-        }
-    });
-
-    document.addEventListener('keyup', (e) => {
-        if (e.code === 'Space' && voiceClient && voiceClient.isJoined) {
-            voiceClient.stopPTT();
-            const pttBtn = document.getElementById('voicePTTBtn');
-            if (pttBtn) pttBtn.classList.remove('is-ptt-active');
-        }
-    });
-}
-
-async function handleVoiceJoin() {
-    if (!voiceClient) return;
-    const success = await voiceClient.join();
-    if (success) {
-        document.getElementById('voiceJoinBtn').style.display = 'none';
-        document.getElementById('voiceMuteBtn').style.display = 'flex';
-        document.getElementById('voicePTTBtn').style.display = 'flex';
-        document.getElementById('voiceLeaveBtn').style.display = 'flex';
-        document.getElementById('voiceAudioMeter').style.display = 'block';
-        showToast('已加入语音频道', 'success');
-    } else {
-        showToast('无法访问麦克风，请检查权限设置', 'error');
-    }
-}
-
-function handleVoiceMuteToggle() {
-    if (!voiceClient) return;
-    const isMuted = voiceClient.toggleMute();
-    const btn = document.getElementById('voiceMuteBtn');
-    const iconUnmuted = btn.querySelector('.icon-unmuted');
-    const iconMuted = btn.querySelector('.icon-muted');
-    const label = btn.querySelector('.mute-label');
-
-    if (isMuted) {
-        btn.classList.add('is-muted');
-        iconUnmuted.style.display = 'none';
-        iconMuted.style.display = 'block';
-        label.textContent = '取消静音';
-    } else {
-        btn.classList.remove('is-muted');
-        iconUnmuted.style.display = 'block';
-        iconMuted.style.display = 'none';
-        label.textContent = '静音';
-    }
-}
-
-function handleVoicePTTStart() {
-    if (!voiceClient) return;
-    voiceClient.startPTT();
-    document.getElementById('voicePTTBtn').classList.add('is-ptt-active');
-}
-
-function handleVoicePTTStop() {
-    if (!voiceClient) return;
-    voiceClient.stopPTT();
-    document.getElementById('voicePTTBtn').classList.remove('is-ptt-active');
-}
-
-function handleVoiceLeave() {
-    if (!voiceClient) return;
-    voiceClient.leave();
-    document.getElementById('voiceJoinBtn').style.display = 'flex';
-    document.getElementById('voiceMuteBtn').style.display = 'none';
-    document.getElementById('voicePTTBtn').style.display = 'none';
-    document.getElementById('voiceLeaveBtn').style.display = 'none';
-    document.getElementById('voiceAudioMeter').style.display = 'none';
-    document.getElementById('voicePeerList').innerHTML = '';
-    voicePeers.clear();
-
-    const muteBtn = document.getElementById('voiceMuteBtn');
-    muteBtn.classList.remove('is-muted');
-    muteBtn.querySelector('.icon-unmuted').style.display = 'block';
-    muteBtn.querySelector('.icon-muted').style.display = 'none';
-    muteBtn.querySelector('.mute-label').textContent = '静音';
-
-    showToast('已离开语音频道', 'warning');
-}
-
-function handleVoiceStatusChange(status) {
-    const dot = document.querySelector('.voice-status-dot');
-    const text = document.querySelector('.voice-status-text');
-    dot.className = 'voice-status-dot';
-
-    switch (status) {
-        case 'connected':
-            dot.classList.add(voiceClient.isMuted ? 'voice-status-muted' : 'voice-status-connected');
-            text.textContent = voiceClient.isMuted ? '静音中' : '已连接';
-            break;
-        case 'connecting':
-            dot.classList.add('voice-status-connecting');
-            text.textContent = '连接中';
-            break;
-        case 'disconnected':
-            dot.classList.add('voice-status-disconnected');
-            text.textContent = '未连接';
-            break;
-    }
-
-    if (voiceClient && voiceClient.isSpeaking && !voiceClient.isMuted) {
-        dot.className = 'voice-status-dot voice-status-speaking';
-        text.textContent = '正在讲话';
-    }
-}
-
-function handleVoicePeerJoined(data) {
-    voicePeers.set(data.socketId, {
-        userId: data.userId,
-        userName: data.userName,
-        color: data.color,
-        isMuted: false,
-        isSpeaking: false
-    });
-    renderVoicePeerList();
-    showToast(`${data.userName} 加入了语音`, 'info');
-}
-
-function handleVoicePeerLeft(data) {
-    const peer = voicePeers.get(data.socketId);
-    voicePeers.delete(data.socketId);
-    renderVoicePeerList();
-    if (peer) {
-        showToast(`${peer.userName} 离开了语音`, 'warning');
-    }
-}
-
-function handleVoicePeerMuteStatus(data) {
-    const peer = voicePeers.get(data.socketId);
-    if (peer) {
-        peer.isMuted = data.isMuted;
-        renderVoicePeerList();
-    }
-}
-
-function handleVoicePeerSpeaking(data) {
-    const peer = voicePeers.get(data.socketId);
-    if (peer) {
-        peer.isSpeaking = data.isSpeaking;
-        renderVoicePeerList();
-    }
-}
-
-function handleVoiceAudioLevel(level) {
-    const fill = document.getElementById('voiceMeterFill');
-    if (!fill) return;
-    const percent = Math.min(level * 400, 100);
-    fill.style.width = percent + '%';
-    if (percent > 5) {
-        fill.classList.add('is-active');
-    } else {
-        fill.classList.remove('is-active');
-    }
-
-    if (voiceClient && voiceClient.isJoined) {
-        const dot = document.querySelector('.voice-status-dot');
-        const text = document.querySelector('.voice-status-text');
-        if (voiceClient.isSpeaking && !voiceClient.isMuted) {
-            dot.className = 'voice-status-dot voice-status-speaking';
-            text.textContent = '正在讲话';
-        } else if (voiceClient.isMuted) {
-            dot.className = 'voice-status-dot voice-status-muted';
-            text.textContent = '静音中';
-        } else {
-            dot.className = 'voice-status-dot voice-status-connected';
-            text.textContent = '已连接';
-        }
-    }
-}
-
-function renderVoicePeerList() {
-    const container = document.getElementById('voicePeerList');
-    container.innerHTML = '';
-
-    voicePeers.forEach((peer) => {
-        const item = document.createElement('div');
-        item.className = 'voice-peer-item';
-
-        let stateClass = 'is-idle';
-        let stateText = '空闲';
-        if (peer.isMuted) {
-            stateClass = 'is-muted';
-            stateText = '静音';
-        } else if (peer.isSpeaking) {
-            stateClass = 'is-speaking';
-            stateText = '讲话中';
-        }
-
-        item.innerHTML = `
-            <div class="voice-peer-avatar" style="background: ${peer.color}">${peer.userName.charAt(0).toUpperCase()}</div>
-            <div class="voice-peer-name">${peer.userName}</div>
-            <div class="voice-peer-state">
-                <span class="voice-peer-state-dot ${stateClass}"></span>
-                <span>${stateText}</span>
-            </div>
-        `;
-        container.appendChild(item);
-    });
 }
 
 function showToast(message, type = 'info') {

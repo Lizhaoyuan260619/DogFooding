@@ -1,55 +1,60 @@
 class CanvasRenderer {
     constructor(container, layerManager, commandHistory) {
-        this.container = container;
-        this.layerManager = layerManager;
-        this.commandHistory = commandHistory;
-        
-        this.width = layerManager.width;
-        this.height = layerManager.height;
-        
-        this.displayCanvas = document.createElement('canvas');
-        this.displayCanvas.width = this.width;
-        this.displayCanvas.height = this.height;
-        this.displayCtx = this.displayCanvas.getContext('2d');
-        
-        this.previewCanvas = document.createElement('canvas');
-        this.previewCanvas.width = this.width;
-        this.previewCanvas.height = this.height;
-        this.previewCtx = this.previewCanvas.getContext('2d');
-        
-        const existingCursorLayer = this.container.querySelector('#cursorLayer');
-        this.container.innerHTML = '';
-        this.container.appendChild(this.displayCanvas);
-        this.container.appendChild(this.previewCanvas);
-        if (existingCursorLayer) {
-            this.container.appendChild(existingCursorLayer);
+        try {
+            this.container = container;
+            this.layerManager = layerManager;
+            this.commandHistory = commandHistory;
+            
+            this.width = layerManager.width;
+            this.height = layerManager.height;
+            
+            this.displayCanvas = document.createElement('canvas');
+            this.displayCanvas.width = this.width;
+            this.displayCanvas.height = this.height;
+            this.displayCtx = this.displayCanvas.getContext('2d');
+            
+            this.previewCanvas = document.createElement('canvas');
+            this.previewCanvas.width = this.width;
+            this.previewCanvas.height = this.height;
+            this.previewCtx = this.previewCanvas.getContext('2d');
+            
+            const existingCursorLayer = this.container.querySelector('#cursorLayer');
+            this.container.innerHTML = '';
+            this.container.appendChild(this.displayCanvas);
+            this.container.appendChild(this.previewCanvas);
+            if (existingCursorLayer) {
+                this.container.appendChild(existingCursorLayer);
+            }
+            
+            this.currentTool = 'pen';
+            this.color = '#000000';
+            this.lineWidth = 3;
+            this.fillColor = null;
+            this.fontSize = 24;
+            
+            this.isDrawing = false;
+            this.startX = 0;
+            this.startY = 0;
+            this.currentX = 0;
+            this.currentY = 0;
+            this.points = [];
+            
+            this.onCommandCallback = null;
+            this.onCursorMoveCallback = null;
+            
+            this.userId = null;
+            this.userName = null;
+            
+            this.currentTemplate = null;
+            
+            this._bindStyle();
+            this._bindEvents();
+            this._setupLayerListener();
+            this.render();
+        } catch (err) {
+            console.error('CanvasRenderer constructor error:', err);
+            throw err;
         }
-        
-        this.currentTool = 'pen';
-        this.color = '#000000';
-        this.lineWidth = 3;
-        this.fillColor = null;
-        this.fontSize = 24;
-        
-        this.isDrawing = false;
-        this.startX = 0;
-        this.startY = 0;
-        this.currentX = 0;
-        this.currentY = 0;
-        this.points = [];
-        
-        this.onCommandCallback = null;
-        this.onCursorMoveCallback = null;
-        
-        this.userId = null;
-        this.userName = null;
-        
-        this.currentTemplate = null;
-        
-        this._bindStyle();
-        this._bindEvents();
-        this._setupLayerListener();
-        this.render();
     }
     
     _bindStyle() {
@@ -294,23 +299,27 @@ class CanvasRenderer {
     }
     
     _startDrawing(x, y) {
-        if (this.currentTool === 'text') {
-            const text = prompt('请输入文字：');
-            if (text) {
-                this._executeTextCommand(x, y, text);
+        try {
+            if (this.currentTool === 'text') {
+                const text = prompt('请输入文字：');
+                if (text) {
+                    this._executeTextCommand(x, y, text);
+                }
+                return;
             }
-            return;
-        }
-        
-        this.isDrawing = true;
-        this.startX = x;
-        this.startY = y;
-        this.currentX = x;
-        this.currentY = y;
-        this.points = [{ x, y }];
-        
-        if (this.currentTool === 'pen' || this.currentTool === 'erase') {
-            this._drawPreview();
+            
+            this.isDrawing = true;
+            this.startX = x;
+            this.startY = y;
+            this.currentX = x;
+            this.currentY = y;
+            this.points = [{ x, y }];
+            
+            if (this.currentTool === 'pen' || this.currentTool === 'erase') {
+                this._drawPreview();
+            }
+        } catch (err) {
+            console.error('_startDrawing error:', err);
         }
     }
     
@@ -329,24 +338,31 @@ class CanvasRenderer {
     }
     
     _endDrawing(x, y) {
-        if (!this.isDrawing) return;
-        
-        this.isDrawing = false;
-        this.currentX = x;
-        this.currentY = y;
-        
-        if (this.points.length > 0) {
-            this.points.push({ x, y });
+        try {
+            if (!this.isDrawing) {
+                return;
+            }
+            
+            this.isDrawing = false;
+            this.currentX = x;
+            this.currentY = y;
+            
+            if (this.points.length > 0) {
+                this.points.push({ x, y });
+            }
+            
+            this._clearPreview();
+            
+            const command = this._createCommand();
+            
+            if (command) {
+                this.executeCommand(command);
+            }
+            
+            this.points = [];
+        } catch (err) {
+            console.error('_endDrawing error:', err);
         }
-        
-        this._clearPreview();
-        
-        const command = this._createCommand();
-        if (command) {
-            this.executeCommand(command);
-        }
-        
-        this.points = [];
     }
     
     _createCommand() {
@@ -504,11 +520,15 @@ class CanvasRenderer {
     }
     
     executeCommand(command) {
-        this.commandHistory.execute(command, this.layerManager);
-        this.render();
-        
-        if (this.onCommandCallback) {
-            this.onCommandCallback(command);
+        try {
+            this.commandHistory.execute(command, this.layerManager);
+            this.render();
+            
+            if (this.onCommandCallback) {
+                this.onCommandCallback(command);
+            }
+        } catch (err) {
+            console.error('executeCommand error:', err);
         }
     }
     

@@ -21,12 +21,24 @@ app.get('/board', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'board.html'));
 });
 
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+});
+
 initDB()
     .then(() => {
         socketHandler(io);
 
         server.listen(PORT, () => {
             console.log(`Server running on http://localhost:${PORT}`);
+        });
+
+        server.on('error', (err) => {
+            console.error('Server error:', err);
         });
     })
     .catch((err) => {

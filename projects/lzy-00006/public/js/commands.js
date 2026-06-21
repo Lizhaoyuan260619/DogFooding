@@ -563,11 +563,16 @@ class CommandHistory {
     }
 
     execute(command, layerManager) {
-        command.execute(layerManager);
-        this.undoStack.push(command);
-        this.redoStack = [];
-        this.currentSequence = this.undoStack.length;
-        this.notifyChange();
+        try {
+            command.execute(layerManager);
+            this.undoStack.push(command);
+            this.redoStack = [];
+            this.currentSequence = this.undoStack.length;
+            this.notifyChange();
+        } catch (err) {
+            console.error('CommandHistory.execute error:', err);
+            throw err;
+        }
     }
 
     executeRemote(command, layerManager) {

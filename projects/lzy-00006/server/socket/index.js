@@ -7,6 +7,12 @@ const roomSequence = new Map();
 
 module.exports = function(io) {
     io.on('connection', (socket) => {
+        socket.on('error', (err) => {
+        });
+
+        socket.on('disconnect', (reason) => {
+        });
+
         roomHandler(io, socket, roomState);
         drawingHandler(io, socket, roomState, roomSequence);
         historyHandler(io, socket, roomState, roomSequence);
