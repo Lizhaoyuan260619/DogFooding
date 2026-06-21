@@ -1,0 +1,11 @@
+Machine learning is a method of data analysis that automates analytical model building. It is a branch of artificial intelligence based on the idea that systems can learn from data, identify patterns and make decisions with minimal human intervention.
+
+The main types of machine learning algorithms include supervised learning, unsupervised learning, semi-supervised learning and reinforcement learning.
+
+Supervised learning algorithms are trained using labeled examples. Unsupervised learning algorithms are used against data that has no historical labels.
+
+Deep learning is a type of machine learning that trains a computer to perform human-like tasks. It uses neural networks with many layers to learn representations of data.
+
+Neural networks are a series of algorithms that endeavor to recognize underlying relationships in a set of data through a process that mimics the way the human brain works.
+
+AI and machine learning technologies are developing rapidly and will play an increasingly important role in future society.

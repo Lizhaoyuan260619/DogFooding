@@ -1,0 +1,13 @@
+Artificial intelligence is intelligence demonstrated by machines, as opposed to natural intelligence displayed by animals including humans.
+
+AI research has been defined as the field of study of intelligent agents, which refers to any system that perceives its environment and takes actions that maximize its chance of achieving its goals.
+
+Machine learning is a subset of artificial intelligence that enables systems to learn and improve from experience without being explicitly programmed.
+
+Deep learning is part of a broader family of machine learning methods based on artificial neural networks with representation learning.
+
+Natural language processing is a subfield of linguistics, computer science, and artificial intelligence concerned with the interactions between computers and human language.
+
+Computer vision is an interdisciplinary scientific field that deals with how computers can gain high-level understanding from digital images or videos.
+
+The applications of artificial intelligence are everywhere. From voice assistants on smartphones to self-driving cars, from recommendation systems to medical diagnosis, AI is transforming our lives.
