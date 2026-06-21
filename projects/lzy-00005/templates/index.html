@@ -56,6 +56,8 @@
                     <div class="note-meta" id="noteMeta"></div>
                     <div class="editor-actions">
                         <button id="saveNoteBtn" class="btn btn-primary">保存</button>
+                        <button id="historyBtn" class="btn">🕘 历史</button>
+                        <button id="shareBtn" class="btn">🔗 分享</button>
                         <button id="deleteNoteBtn" class="btn btn-danger">删除</button>
                         <button id="exportNoteBtn" class="btn">导出</button>
                     </div>
@@ -92,6 +94,73 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div id="historyModal" class="modal hidden">
+            <div class="modal-header">
+                <h2>🕘 版本历史</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="historyList" class="history-list"></div>
+            </div>
+        </div>
+
+        <div id="shareModal" class="modal hidden">
+            <div class="modal-header">
+                <h2>🔗 分享笔记</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-section">
+                    <h3>创建新分享链接</h3>
+                    <div class="share-form">
+                        <label class="form-label">
+                            <span>访问权限</span>
+                            <select id="sharePermission" class="form-select">
+                                <option value="read">只读</option>
+                                <option value="write">可编辑</option>
+                            </select>
+                        </label>
+                        <label class="form-label">
+                            <span>有效期（天，留空为永久）</span>
+                            <input type="number" id="shareExpiresDays" class="form-input" min="1" max="365" placeholder="例如：7">
+                        </label>
+                        <label class="form-label">
+                            <span>访问密码（可选）</span>
+                            <input type="text" id="sharePassword" class="form-input" placeholder="留空则无需密码">
+                        </label>
+                        <button id="createShareBtn" class="btn btn-primary">生成分享链接</button>
+                    </div>
+                </div>
+                <div class="share-section">
+                    <h3>当前有效分享链接</h3>
+                    <div id="shareList" class="share-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="versionPreviewModal" class="modal hidden">
+            <div class="modal-header">
+                <h2 id="versionPreviewTitle">版本预览</h2>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="versionPreviewMeta" class="version-preview-meta"></div>
+                <div class="version-preview-section">
+                    <h4>标题</h4>
+                    <div id="versionPreviewTitleContent" class="version-preview-content"></div>
+                </div>
+                <div class="version-preview-section">
+                    <h4>内容</h4>
+                    <div id="versionPreviewBodyContent" class="version-preview-content version-preview-body"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="restoreVersionBtn" class="btn btn-primary">恢复到此版本</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="/static/js/main.js"></script>

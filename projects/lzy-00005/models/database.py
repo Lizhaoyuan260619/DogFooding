@@ -73,6 +73,36 @@ def init_db():
             INSERT INTO notes_fts(rowid, id, title, content)
             VALUES (new.rowid, new.id, new.title, new.content);
         END;
+
+        CREATE TABLE IF NOT EXISTS note_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            change_summary TEXT,
+            modified_by TEXT DEFAULT 'local-user',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_note_versions_note_id ON note_versions(note_id);
+        CREATE INDEX IF NOT EXISTS idx_note_versions_created_at ON note_versions(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS note_shares (
+            id TEXT PRIMARY KEY,
+            note_id TEXT NOT NULL,
+            share_token TEXT NOT NULL UNIQUE,
+            permission TEXT NOT NULL CHECK (permission IN ('read', 'write')),
+            password_hash TEXT,
+            expires_at TIMESTAMP,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_by TEXT DEFAULT 'local-user',
+            is_active INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_note_shares_note_id ON note_shares(note_id);
+        CREATE INDEX IF NOT EXISTS idx_note_shares_token ON note_shares(share_token);
     ''')
 
     db.commit()

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享的笔记 - Zettelkasten</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .share-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .share-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .share-header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #1d1d1f;
+        }
+        .share-permission-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .share-permission-badge.read {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .share-permission-badge.write {
+            background: #fff3e0;
+            color: #e65100;
+        }
+        .password-modal {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 32px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .password-modal h2 {
+            margin: 0 0 16px;
+            font-size: 18px;
+        }
+        .password-modal p {
+            color: #86868b;
+            margin-bottom: 24px;
+        }
+        .password-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        .password-input:focus {
+            outline: none;
+            border-color: #0071e3;
+        }
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .shared-note-content {
+            background: #fff;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        }
+        .shared-note-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0 0 16px;
+            color: #1d1d1f;
+            border: none;
+            background: transparent;
+            width: 100%;
+            padding: 0;
+        }
+        .shared-note-title:disabled {
+            color: #1d1d1f;
+            cursor: default;
+        }
+        .shared-note-title:not(:disabled) {
+            border-bottom: 1px dashed #d2d2d7;
+            padding-bottom: 8px;
+        }
+        .shared-note-meta {
+            color: #86868b;
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+        .shared-note-body {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #1d1d1f;
+        }
+        .shared-note-body textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 16px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.7;
+            box-sizing: border-box;
+            resize: vertical;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .shared-note-body textarea:focus {
+            outline: none;
+            border-color: #0071e3;
+        }
+        .share-actions {
+            margin-top: 24px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .save-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #86868b;
+            font-size: 13px;
+        }
+        .save-status.saved {
+            color: #2e7d32;
+        }
+        .save-status.saving {
+            color: #f57c00;
+        }
+        .share-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .share-tag {
+            background: #f5f5f7;
+            color: #1d1d1f;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="share-container" id="shareContainer"></div>
+
+    <script>
+        const shareToken = '{{ share_token }}';
+        const API_BASE = '/api';
+        let currentNote = null;
+        let shareInfo = null;
+        let sharePassword = null;
+        let saveTimer = null;
+        let saveStatus = 'saved';
+
+        async function request(url, options = {}) {
+            const defaultHeaders = { 'Content-Type': 'application/json' };
+            const response = await fetch(url, {
+                ...options,
+                headers: { ...defaultHeaders, ...options.headers }
+            });
+            const contentType = response.headers.get('content-type');
+            let data;
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                data = await response.text();
+            }
+            if (!response.ok) {
+                return { ...data, _error: true, _status: response.status };
+            }
+            return data;
+        }
+
+        function renderMarkdown(text) {
+            if (!text) return '';
+            const escapeHtml = (t) => {
+                const div = document.createElement('div');
+                div.textContent = t;
+                return div.innerHTML;
+            };
+            let html = escapeHtml(text);
+            html = html.replace(/```([\s\S]*?)```/g, (m, c) => `<pre><code>${escapeHtml(c.trim())}</code></pre>`);
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>');
+            html = html.replace(/^##### (.*)$/gm, '<h5>$1</h5>');
+            html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
+            html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            html = html.replace(/^> (.*)$/gm, '<blockquote>$1</blockquote>');
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            html = html.replace(/^- (.*)$/gm, '<li>$1</li>');
+            html = html.replace(/^(\d+)\. (.*)$/gm, '<li>$2</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
+            html = html.replace(/---/g, '<hr>');
+            html = html.split('\n\n').map(p => {
+                if (p.startsWith('<') && !p.startsWith('<li>')) return p;
+                if (p.trim() === '') return '';
+                return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+            }).join('\n');
+            return html;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleString('zh-CN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            } catch { return dateStr; }
+        }
+
+        function showPasswordPrompt(errorMsg = null) {
+            const container = document.getElementById('shareContainer');
+            container.innerHTML = `
+                <div class="password-modal">
+                    <h2>🔒 需要访问密码</h2>
+                    <p>此分享链接受密码保护，请输入密码以访问</p>
+                    ${errorMsg ? `<div class="error-message">${errorMsg}</div>` : ''}
+                    <input type="password" id="pwdInput" class="password-input" placeholder="请输入密码">
+                    <button class="btn btn-primary" id="submitPwdBtn" style="width: 100%;">提交</button>
+                </div>
+            `;
+            document.getElementById('pwdInput').focus();
+            document.getElementById('pwdInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submitPassword();
+            });
+            document.getElementById('submitPwdBtn').addEventListener('click', submitPassword);
+        }
+
+        async function submitPassword() {
+            const pwd = document.getElementById('pwdInput').value;
+            if (!pwd) return;
+            sharePassword = pwd;
+            await loadNote();
+        }
+
+        function showError(message) {
+            const container = document.getElementById('shareContainer');
+            container.innerHTML = `
+                <div class="password-modal">
+                    <h2>⚠️ 无法访问</h2>
+                    <div class="error-message">${message}</div>
+                    <p style="color: #86868b; font-size: 13px;">请联系分享者获取有效的访问链接</p>
+                </div>
+            `;
+        }
+
+        function renderNote(data) {
+            currentNote = data.note;
+            shareInfo = data.share;
+            const canEdit = shareInfo.permission === 'write';
+            const container = document.getElementById('shareContainer');
+
+            const tagsHtml = (currentNote.tags || []).length > 0
+                ? `<div class="share-tags">${currentNote.tags.map(t => `<span class="share-tag">#${t.name}</span>`).join('')}</div>`
+                : '';
+
+            container.innerHTML = `
+                <div class="share-header">
+                    <h1>📝 分享的笔记</h1>
+                    <span class="share-permission-badge ${shareInfo.permission}">
+                        ${canEdit ? '✏️ 可编辑' : '👁️ 只读'}
+                    </span>
+                </div>
+                <div class="shared-note-content">
+                    ${tagsHtml}
+                    ${canEdit
+                        ? `<input type="text" class="shared-note-title" id="noteTitle" value="${currentNote.title}">`
+                        : `<h1 class="shared-note-title" disabled>${currentNote.title}</h1>`
+                    }
+                    <div class="shared-note-meta">
+                        ID: ${currentNote.id} | 创建: ${formatDate(currentNote.created_at)} | 修改: ${formatDate(currentNote.updated_at)}
+                    </div>
+                    <div class="shared-note-body" id="noteBody">
+                        ${canEdit
+                            ? `<textarea id="noteContent"></textarea>`
+                            : renderMarkdown(currentNote.content)
+                        }
+                    </div>
+                    ${canEdit ? `
+                        <div class="share-actions">
+                            <span class="save-status" id="saveStatus">✓ 已保存</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            if (canEdit) {
+                const textarea = document.getElementById('noteContent');
+                textarea.value = currentNote.content;
+                const titleInput = document.getElementById('noteTitle');
+
+                titleInput.addEventListener('input', scheduleSave);
+                textarea.addEventListener('input', scheduleSave);
+            }
+        }
+
+        function setSaveStatus(status) {
+            const el = document.getElementById('saveStatus');
+            if (!el) return;
+            saveStatus = status;
+            el.className = 'save-status ' + status;
+            if (status === 'saved') el.textContent = '✓ 已保存';
+            else if (status === 'saving') el.textContent = '⏳ 保存中...';
+            else if (status === 'error') el.textContent = '✗ 保存失败';
+        }
+
+        function scheduleSave() {
+            setSaveStatus('saving');
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(doSave, 800);
+        }
+
+        async function doSave() {
+            if (!currentNote || !shareInfo) return;
+            const title = document.getElementById('noteTitle').value;
+            const content = document.getElementById('noteContent').value;
+
+            try {
+                const result = await request(`${API_BASE}/notes/shared/${shareToken}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ title, content, password: sharePassword })
+                });
+                if (result._error) {
+                    setSaveStatus('error');
+                    console.error('Save failed:', result);
+                    return;
+                }
+                if (result.note) {
+                    currentNote = result.note;
+                }
+                setSaveStatus('saved');
+            } catch (err) {
+                setSaveStatus('error');
+                console.error('Save error:', err);
+            }
+        }
+
+        async function loadNote() {
+            let url = `${API_BASE}/notes/shared/${shareToken}`;
+            if (sharePassword) {
+                url += `?password=${encodeURIComponent(sharePassword)}`;
+            }
+            const result = await request(url);
+
+            if (result._error) {
+                if (result.require_password) {
+                    showPasswordPrompt(result.error);
+                } else {
+                    showError(result.error || '无法访问此分享链接');
+                }
+                return;
+            }
+
+            renderNote(result);
+        }
+
+        document.addEventListener('DOMContentLoaded', loadNote);
+    </script>
+</body>
+</html>

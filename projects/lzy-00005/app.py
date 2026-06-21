@@ -25,6 +25,10 @@ def create_app():
     def index():
         return render_template('index.html')
 
+    @app.route('/share/<share_token>')
+    def shared_note_page(share_token):
+        return render_template('shared_note.html', share_token=share_token)
+
     return app
 
 if __name__ == '__main__':

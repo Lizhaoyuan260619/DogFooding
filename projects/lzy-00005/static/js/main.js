@@ -79,6 +79,8 @@ class App {
             saveNoteBtn: document.getElementById('saveNoteBtn'),
             deleteNoteBtn: document.getElementById('deleteNoteBtn'),
             exportNoteBtn: document.getElementById('exportNoteBtn'),
+            historyBtn: document.getElementById('historyBtn'),
+            shareBtn: document.getElementById('shareBtn'),
             searchInput: document.getElementById('searchInput'),
             notesList: document.getElementById('notesList'),
             tagsList: document.getElementById('tagsList'),
@@ -94,8 +96,24 @@ class App {
             zoomLevel: document.getElementById('zoomLevel'),
             refreshGraphBtn: document.getElementById('refreshGraphBtn'),
             tabBtns: document.querySelectorAll('.tab-btn'),
-            tabContents: document.querySelectorAll('.tab-content')
+            tabContents: document.querySelectorAll('.tab-content'),
+            modalOverlay: document.getElementById('modalOverlay'),
+            historyModal: document.getElementById('historyModal'),
+            shareModal: document.getElementById('shareModal'),
+            versionPreviewModal: document.getElementById('versionPreviewModal'),
+            historyList: document.getElementById('historyList'),
+            shareList: document.getElementById('shareList'),
+            sharePermission: document.getElementById('sharePermission'),
+            shareExpiresDays: document.getElementById('shareExpiresDays'),
+            sharePassword: document.getElementById('sharePassword'),
+            createShareBtn: document.getElementById('createShareBtn'),
+            versionPreviewTitle: document.getElementById('versionPreviewTitle'),
+            versionPreviewMeta: document.getElementById('versionPreviewMeta'),
+            versionPreviewTitleContent: document.getElementById('versionPreviewTitleContent'),
+            versionPreviewBodyContent: document.getElementById('versionPreviewBodyContent'),
+            restoreVersionBtn: document.getElementById('restoreVersionBtn')
         };
+        this.currentPreviewVersion = null;
     }
 
     bindEvents() {
@@ -103,6 +121,18 @@ class App {
         this.els.saveNoteBtn.addEventListener('click', () => this.saveCurrentNote());
         this.els.deleteNoteBtn.addEventListener('click', () => this.deleteCurrentNote());
         this.els.exportNoteBtn.addEventListener('click', () => this.exportCurrentNote());
+        this.els.historyBtn.addEventListener('click', () => this.openHistoryModal());
+        this.els.shareBtn.addEventListener('click', () => this.openShareModal());
+
+        this.els.modalOverlay.addEventListener('click', (e) => {
+            if (e.target === this.els.modalOverlay) this.closeAllModals();
+        });
+        document.querySelectorAll('[data-close-modal]').forEach(btn => {
+            btn.addEventListener('click', () => this.closeAllModals());
+        });
+
+        this.els.createShareBtn.addEventListener('click', () => this.createShare());
+        this.els.restoreVersionBtn.addEventListener('click', () => this.restoreCurrentVersion());
 
         this.els.noteTitle.addEventListener('input', () => this.updatePreview());
         this.els.noteContent.addEventListener('input', () => this.updatePreview());
@@ -494,6 +524,247 @@ class App {
             });
         } catch {
             return dateStr;
+        }
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 2500);
+    }
+
+    openModal(modalEl) {
+        this.els.modalOverlay.classList.remove('hidden');
+        [this.els.historyModal, this.els.shareModal, this.els.versionPreviewModal].forEach(m => {
+            if (m) m.classList.add('hidden');
+        });
+        if (modalEl) modalEl.classList.remove('hidden');
+    }
+
+    closeAllModals() {
+        this.els.modalOverlay.classList.add('hidden');
+        [this.els.historyModal, this.els.shareModal, this.els.versionPreviewModal].forEach(m => {
+            if (m) m.classList.add('hidden');
+        });
+    }
+
+    async openHistoryModal() {
+        if (!this.currentNote) {
+            this.showToast('请先选择一个笔记', 'error');
+            return;
+        }
+        this.openModal(this.els.historyModal);
+        await this.loadVersions();
+    }
+
+    async loadVersions() {
+        if (!this.currentNote) return;
+        try {
+            const result = await ApiClient.getNoteVersions(this.currentNote.id);
+            const versions = result.versions || [];
+            if (versions.length === 0) {
+                this.els.historyList.innerHTML = '<div class="history-empty">暂无历史版本</div>';
+                return;
+            }
+            this.els.historyList.innerHTML = versions.map(v => `
+                <div class="history-item" data-version-id="${v.id}">
+                    <div class="history-item-header">
+                        <span class="history-item-time">${this.formatDate(v.created_at)}</span>
+                        <span class="history-item-author">${v.modified_by || '未知用户'}</span>
+                    </div>
+                    <div class="history-item-summary">${v.change_summary || '无变更说明'}</div>
+                    <div class="history-item-title">${v.title || '（无标题）'}</div>
+                </div>
+            `).join('');
+            this.els.historyList.querySelectorAll('.history-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const vid = parseInt(el.dataset.versionId);
+                    this.previewVersion(vid);
+                });
+            });
+        } catch (err) {
+            console.error('Failed to load versions:', err);
+            this.els.historyList.innerHTML = '<div class="history-empty">加载失败，请重试</div>';
+        }
+    }
+
+    async previewVersion(versionId) {
+        if (!this.currentNote) return;
+        try {
+            const result = await ApiClient.getVersion(this.currentNote.id, versionId);
+            const v = result.version;
+            this.currentPreviewVersion = v;
+            this.els.versionPreviewTitle.textContent = `版本 #${v.id} - ${this.formatDate(v.created_at)}`;
+            this.els.versionPreviewMeta.innerHTML = `
+                <div><strong>修改时间:</strong> ${this.formatDate(v.created_at)}</div>
+                <div><strong>修改者:</strong> ${v.modified_by || '未知用户'}</div>
+                <div><strong>变更摘要:</strong> ${v.change_summary || '无变更说明'}</div>
+            `;
+            this.els.versionPreviewTitleContent.textContent = v.title || '（无标题）';
+            this.els.versionPreviewBodyContent.textContent = v.content || '（无内容）';
+            this.openModal(this.els.versionPreviewModal);
+        } catch (err) {
+            console.error('Failed to load version:', err);
+            this.showToast('加载版本详情失败', 'error');
+        }
+    }
+
+    async restoreCurrentVersion() {
+        if (!this.currentPreviewVersion || !this.currentNote) return;
+        const v = this.currentPreviewVersion;
+        const msg = `确定要将笔记恢复到 ${this.formatDate(v.created_at)} 的版本吗？\n当前未保存的修改将丢失，此操作不可撤销。`;
+        if (!confirm(msg)) return;
+
+        try {
+            const result = await ApiClient.restoreVersion(this.currentNote.id, v.id, true);
+            this.showToast('版本回退成功', 'success');
+            this.closeAllModals();
+            await this.loadNote(this.currentNote.id);
+            await Promise.all([
+                this.loadNotes(),
+                this.loadTags(),
+                this.loadGraph()
+            ]);
+        } catch (err) {
+            console.error('Failed to restore version:', err);
+            this.showToast('版本回退失败: ' + (err.message || '未知错误'), 'error');
+        }
+    }
+
+    async openShareModal() {
+        if (!this.currentNote) {
+            this.showToast('请先选择一个笔记', 'error');
+            return;
+        }
+        this.els.sharePermission.value = 'read';
+        this.els.shareExpiresDays.value = '';
+        this.els.sharePassword.value = '';
+        this.openModal(this.els.shareModal);
+        await this.loadShares();
+    }
+
+    async loadShares() {
+        if (!this.currentNote) return;
+        try {
+            const result = await ApiClient.getNoteShares(this.currentNote.id, true);
+            const shares = result.shares || [];
+            if (shares.length === 0) {
+                this.els.shareList.innerHTML = '<div class="share-empty">暂无分享链接</div>';
+                return;
+            }
+            this.els.shareList.innerHTML = shares.map(s => this.renderShareItem(s)).join('');
+            this.bindShareItemEvents();
+        } catch (err) {
+            console.error('Failed to load shares:', err);
+            this.els.shareList.innerHTML = '<div class="share-empty">加载失败</div>';
+        }
+    }
+
+    renderShareItem(s) {
+        const shareUrl = `${window.location.origin}/share/${s.share_token}`;
+        const isValid = s.is_valid && s.is_active;
+        const badges = [];
+        badges.push(`<span class="share-badge ${s.permission}">${s.permission === 'read' ? '👁️ 只读' : '✏️ 可编辑'}</span>`);
+        if (s.has_password) badges.push('<span class="share-badge protected">🔒 密码保护</span>');
+        if (s.expires_at) badges.push(`<span class="share-badge expires">⏰ 有效期至 ${this.formatDate(s.expires_at)}</span>`);
+        if (!isValid) badges.push('<span class="share-badge invalid">❌ 已失效</span>');
+
+        return `
+            <div class="share-item" data-share-id="${s.id}">
+                <div class="share-item-header">
+                    <div>
+                        <div class="share-item-title">分享链接 #${s.id}</div>
+                        <div class="share-item-token">Token: ${s.share_token.substring(0, 20)}...</div>
+                    </div>
+                    <div class="share-item-actions">
+                        ${isValid ? `<button class="btn btn-small btn-danger" data-action="revoke">撤销</button>` : ''}
+                        <button class="btn btn-small" data-action="delete">删除</button>
+                    </div>
+                </div>
+                <div class="share-item-info">${badges.join('')}</div>
+                <div class="share-item-info" style="font-size:12px;color:#86868b;">
+                    创建于 ${this.formatDate(s.created_at)}
+                </div>
+                <div class="share-item-url">
+                    <input type="text" class="share-url-input" value="${shareUrl}" readonly>
+                    <button class="btn btn-small" data-action="copy">复制</button>
+                    <button class="btn btn-small" data-action="open">打开</button>
+                </div>
+            </div>
+        `;
+    }
+
+    bindShareItemEvents() {
+        this.els.shareList.querySelectorAll('.share-item').forEach(item => {
+            const shareId = item.dataset.shareId;
+            item.querySelector('[data-action="copy"]')?.addEventListener('click', async () => {
+                const input = item.querySelector('.share-url-input');
+                try {
+                    await navigator.clipboard.writeText(input.value);
+                    this.showToast('链接已复制到剪贴板', 'success');
+                } catch {
+                    input.select();
+                    document.execCommand('copy');
+                    this.showToast('链接已复制', 'success');
+                }
+            });
+            item.querySelector('[data-action="open"]')?.addEventListener('click', () => {
+                const input = item.querySelector('.share-url-input');
+                window.open(input.value, '_blank');
+            });
+            item.querySelector('[data-action="revoke"]')?.addEventListener('click', async () => {
+                if (!confirm('确定要撤销此分享链接吗？撤销后链接将立即失效。')) return;
+                try {
+                    await ApiClient.revokeShare(shareId);
+                    this.showToast('分享已撤销', 'success');
+                    await this.loadShares();
+                } catch (err) {
+                    this.showToast('撤销失败', 'error');
+                }
+            });
+            item.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
+                if (!confirm('确定要删除此分享记录吗？')) return;
+                try {
+                    await ApiClient.deleteShare(shareId);
+                    this.showToast('分享已删除', 'success');
+                    await this.loadShares();
+                } catch (err) {
+                    this.showToast('删除失败', 'error');
+                }
+            });
+        });
+    }
+
+    async createShare() {
+        if (!this.currentNote) return;
+        const permission = this.els.sharePermission.value;
+        const expiresDaysRaw = this.els.shareExpiresDays.value.trim();
+        const password = this.els.sharePassword.value.trim() || null;
+        const expires_days = expiresDaysRaw ? parseInt(expiresDaysRaw, 10) : null;
+
+        if (expiresDaysRaw && (isNaN(expires_days) || expires_days < 1 || expires_days > 365)) {
+            this.showToast('有效期必须是 1-365 天之间的数字', 'error');
+            return;
+        }
+
+        try {
+            const share = await ApiClient.createShare(this.currentNote.id, {
+                permission,
+                password,
+                expires_days
+            });
+            this.showToast('分享链接已创建', 'success');
+            this.els.shareExpiresDays.value = '';
+            this.els.sharePassword.value = '';
+            await this.loadShares();
+        } catch (err) {
+            console.error('Failed to create share:', err);
+            this.showToast('创建分享失败: ' + (err.message || '未知错误'), 'error');
         }
     }
 }
