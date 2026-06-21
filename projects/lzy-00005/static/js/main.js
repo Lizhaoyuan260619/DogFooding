@@ -1,5 +1,6 @@
 import ApiClient from './api.js';
 import GraphRenderer from './graph-renderer.js';
+import linkPreviewCard, { previewCache } from './link-preview.js';
 
 class MarkdownRenderer {
     static escapeHtml(text) {
@@ -156,6 +157,8 @@ class App {
             }
         });
 
+        this.initLinkPreviewEvents();
+
         let searchTimer;
         this.els.searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimer);
@@ -181,6 +184,48 @@ class App {
         this.els.refreshGraphBtn.addEventListener('click', () => this.loadGraph());
 
         this.initResizer();
+    }
+
+    initLinkPreviewEvents() {
+        this.els.notePreview.addEventListener('mouseover', (e) => {
+            const wikilink = e.target.closest('.wikilink');
+            if (wikilink) {
+                const noteId = wikilink.dataset.noteId;
+                if (noteId) {
+                    linkPreviewCard.show(noteId, wikilink);
+                }
+            }
+        });
+
+        this.els.notePreview.addEventListener('mouseout', (e) => {
+            const wikilink = e.target.closest('.wikilink');
+            if (wikilink && !e.relatedTarget?.closest('.wikilink') && !e.relatedTarget?.closest('.link-preview-card')) {
+                linkPreviewCard.hide();
+            }
+        });
+
+        this.els.backlinksList.addEventListener('mouseover', (e) => {
+            const linkChip = e.target.closest('.link-chip');
+            if (linkChip) {
+                const noteId = linkChip.dataset.noteId;
+                if (noteId) {
+                    linkPreviewCard.show(noteId, linkChip);
+                }
+            }
+        });
+
+        this.els.backlinksList.addEventListener('mouseout', (e) => {
+            const linkChip = e.target.closest('.link-chip');
+            if (linkChip && !e.relatedTarget?.closest('.link-chip') && !e.relatedTarget?.closest('.link-preview-card')) {
+                linkPreviewCard.hide();
+            }
+        });
+
+        document.addEventListener('link-preview-click', (e) => {
+            if (e.detail?.noteId) {
+                this.loadNote(e.detail.noteId);
+            }
+        });
     }
 
     initResizer() {
@@ -394,8 +439,24 @@ class App {
             this.els.noteMeta.textContent = `ID: ${note.id} | 创建: ${this.formatDate(note.created_at)} | 修改: ${this.formatDate(note.updated_at)}`;
             this.renderNotesList();
             this.graphRenderer.setCurrentNote(noteId);
+            this.preloadLinkedNotes(note);
         } catch (err) {
             console.error('Failed to load note:', err);
+        }
+    }
+
+    preloadLinkedNotes(note) {
+        const linkedIds = [];
+        if (note.outgoing_links) {
+            linkedIds.push(...note.outgoing_links.map(l => l.id));
+        }
+        if (note.incoming_links) {
+            linkedIds.push(...note.incoming_links.map(l => l.id));
+        }
+        if (linkedIds.length > 0) {
+            setTimeout(() => {
+                previewCache.preload(linkedIds);
+            }, 500);
         }
     }
 
@@ -409,6 +470,7 @@ class App {
         backlinks.forEach(link => {
             const chip = document.createElement('span');
             chip.className = 'link-chip';
+            chip.dataset.noteId = link.id;
             chip.innerHTML = `
                 <span>${link.title || '（无标题）'}</span>
                 <span class="link-chip-id">${link.id}</span>
@@ -444,6 +506,8 @@ class App {
                 this.currentNote = await ApiClient.updateNote(this.currentNote.id, {
                     title, content, tags
                 });
+                previewCache.invalidate(this.currentNote.id);
+                this.invalidateLinkedNotesCache(this.currentNote);
             } else {
                 this.currentNote = await ApiClient.createNote({
                     title, content, tags
@@ -462,6 +526,17 @@ class App {
         }
     }
 
+    invalidateLinkedNotesCache(note) {
+        const linkedIds = [];
+        if (note.outgoing_links) {
+            linkedIds.push(...note.outgoing_links.map(l => l.id));
+        }
+        if (note.incoming_links) {
+            linkedIds.push(...note.incoming_links.map(l => l.id));
+        }
+        linkedIds.forEach(id => previewCache.invalidate(id));
+    }
+
     async deleteCurrentNote() {
         if (!this.currentNote) {
             this.showEmptyState();
@@ -471,7 +546,11 @@ class App {
             return;
         }
         try {
-            await ApiClient.deleteNote(this.currentNote.id);
+            const noteId = this.currentNote.id;
+            const linkedNote = { ...this.currentNote };
+            await ApiClient.deleteNote(noteId);
+            previewCache.invalidate(noteId);
+            this.invalidateLinkedNotesCache(linkedNote);
             this.currentNote = null;
             this.showEmptyState();
             await Promise.all([
