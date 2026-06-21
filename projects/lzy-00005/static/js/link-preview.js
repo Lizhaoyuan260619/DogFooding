@@ -70,14 +70,19 @@ class LinkPreviewCard {
         this.showTimer = null;
         this.hideTimer = null;
         this.currentNoteId = null;
+        this.currentTriggerEl = null;
         this.isHoveringCard = false;
+        this.isHoveringTrigger = false;
         this.showDelay = 400;
         this.hideDelay = 200;
+        this.fadeDuration = 150;
         this.cardWidth = 320;
         this.cardMaxHeight = 240;
+        this.isVisible = false;
+        this.isAnimating = false;
 
         this.initCard();
-        this.bindEvents();
+        this.bindCardEvents();
     }
 
     initCard() {
@@ -90,10 +95,12 @@ class LinkPreviewCard {
             </div>
         `;
         this.card.style.display = 'none';
+        this.card.style.opacity = '0';
+        this.card.style.pointerEvents = 'none';
         document.body.appendChild(this.card);
     }
 
-    bindEvents() {
+    bindCardEvents() {
         this.card.addEventListener('mouseenter', () => {
             this.isHoveringCard = true;
             this.cancelHide();
@@ -101,48 +108,112 @@ class LinkPreviewCard {
 
         this.card.addEventListener('mouseleave', () => {
             this.isHoveringCard = false;
-            this.scheduleHide();
+            this.tryHide();
         });
 
-        document.addEventListener('scroll', () => {
-            if (this.card.style.display !== 'none') {
-                this.hide();
+        document.addEventListener('mousedown', (e) => {
+            if (this.isVisible &&
+                !this.card.contains(e.target) &&
+                !e.target.closest('.wikilink') &&
+                !e.target.closest('.link-chip')) {
+                this.forceHide();
             }
         }, true);
 
+        let scrollTimeout;
+        document.addEventListener('scroll', () => {
+            if (!this.isVisible) return;
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                if (this.isVisible && !this.isHoveringCard && !this.isHoveringTrigger) {
+                    this.forceHide();
+                }
+            }, 100);
+        }, true);
+
         window.addEventListener('resize', () => {
-            if (this.card.style.display !== 'none') {
-                this.hide();
+            if (this.isVisible) {
+                this.forceHide();
             }
         });
     }
 
     show(noteId, triggerEl) {
         this.currentNoteId = noteId;
+        this.currentTriggerEl = triggerEl;
+        this.isHoveringTrigger = true;
+
         this.cancelHide();
         this.cancelShow();
 
+        if (this.isVisible) {
+            this.renderCard(noteId, triggerEl);
+            return;
+        }
+
         this.showTimer = setTimeout(() => {
+            this.showTimer = null;
             this.renderCard(noteId, triggerEl);
         }, this.showDelay);
+    }
+
+    leaveTrigger(triggerEl) {
+        if (this.currentTriggerEl !== triggerEl) return;
+        this.isHoveringTrigger = false;
+        this.tryHide();
+    }
+
+    tryHide() {
+        if (this.isHoveringCard || this.isHoveringTrigger) {
+            return;
+        }
+        this.hide();
     }
 
     hide() {
         this.cancelShow();
         this.cancelHide();
 
+        if (!this.isVisible && !this.isAnimating) {
+            return;
+        }
+
         this.hideTimer = setTimeout(() => {
-            if (!this.isHoveringCard) {
-                this.card.style.opacity = '0';
-                this.card.style.transform = 'translateY(4px)';
-                setTimeout(() => {
-                    if (!this.isHoveringCard) {
-                        this.card.style.display = 'none';
-                        this.currentNoteId = null;
-                    }
-                }, 150);
+            this.hideTimer = null;
+            if (this.isHoveringCard || this.isHoveringTrigger) {
+                return;
             }
+            this.performHide();
         }, this.hideDelay);
+    }
+
+    forceHide() {
+        this.cancelShow();
+        this.cancelHide();
+        this.isHoveringCard = false;
+        this.isHoveringTrigger = false;
+        this.performHide();
+    }
+
+    performHide() {
+        if (!this.isVisible) {
+            this.currentNoteId = null;
+            this.currentTriggerEl = null;
+            return;
+        }
+
+        this.isAnimating = true;
+        this.card.style.pointerEvents = 'none';
+        this.card.style.opacity = '0';
+        this.card.style.transform = 'translateY(4px)';
+
+        setTimeout(() => {
+            this.card.style.display = 'none';
+            this.isVisible = false;
+            this.isAnimating = false;
+            this.currentNoteId = null;
+            this.currentTriggerEl = null;
+        }, this.fadeDuration);
     }
 
     cancelShow() {
@@ -166,16 +237,28 @@ class LinkPreviewCard {
                 <span>加载中...</span>
             </div>
         `;
+
+        this.card.style.display = 'flex';
+        this.card.style.width = this.cardWidth + 'px';
+        this.card.style.maxHeight = this.cardMaxHeight + 'px';
+        this.card.style.pointerEvents = 'none';
+
         this.positionCard(triggerEl);
-        this.card.style.display = 'block';
+
         requestAnimationFrame(() => {
-            this.card.style.opacity = '1';
-            this.card.style.transform = 'translateY(0)';
+            requestAnimationFrame(() => {
+                this.card.style.opacity = '1';
+                this.card.style.transform = 'translateY(0)';
+                this.card.style.pointerEvents = 'auto';
+                this.isVisible = true;
+                this.isAnimating = false;
+            });
         });
 
         const cached = previewCache.get(noteId);
         if (cached) {
             this.renderContent(cached);
+            this.positionCard(triggerEl);
             return;
         }
 
@@ -184,10 +267,12 @@ class LinkPreviewCard {
             if (note && this.currentNoteId === noteId) {
                 previewCache.set(noteId, note);
                 this.renderContent(note);
+                this.positionCard(triggerEl);
             }
         } catch (err) {
             if (this.currentNoteId === noteId) {
                 this.renderError();
+                this.positionCard(triggerEl);
             }
         }
     }
@@ -195,6 +280,11 @@ class LinkPreviewCard {
     renderContent(note) {
         const summary = this.extractSummary(note.content, 150);
         const updatedAt = this.formatDate(note.updated_at);
+
+        const existingClickHandler = this.card._clickHandler;
+        if (existingClickHandler) {
+            this.card.removeEventListener('click', existingClickHandler);
+        }
 
         this.card.innerHTML = `
             <div class="link-preview-header">
@@ -210,13 +300,14 @@ class LinkPreviewCard {
             </div>
         `;
 
-        this.card.addEventListener('click', () => {
+        this.card._clickHandler = () => {
             const event = new CustomEvent('link-preview-click', {
                 detail: { noteId: note.id }
             });
             document.dispatchEvent(event);
-            this.hide();
-        });
+            this.forceHide();
+        };
+        this.card.addEventListener('click', this.card._clickHandler);
     }
 
     renderError() {
@@ -228,36 +319,44 @@ class LinkPreviewCard {
     }
 
     positionCard(triggerEl) {
+        if (!triggerEl) return;
+
         const rect = triggerEl.getBoundingClientRect();
-        const scrollX = window.scrollX || window.pageXOffset;
-        const scrollY = window.scrollY || window.pageYOffset;
-
-        let left = rect.left + scrollX;
-        let top = rect.bottom + scrollY + 8;
-
-        const cardWidth = this.cardWidth;
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
+        const margin = 12;
+        const gap = 8;
 
-        if (left + cardWidth > viewportWidth + scrollX - 16) {
-            left = viewportWidth + scrollX - cardWidth - 16;
+        const cardRect = this.card.getBoundingClientRect();
+        const actualWidth = cardRect.width || this.cardWidth;
+        const actualHeight = cardRect.height || this.cardMaxHeight;
+
+        let left = rect.left;
+        let top = rect.bottom + gap;
+
+        if (left + actualWidth > viewportWidth - margin) {
+            left = viewportWidth - actualWidth - margin;
         }
-
-        if (left < scrollX + 16) {
-            left = scrollX + 16;
+        if (left < margin) {
+            left = margin;
         }
 
         const spaceBelow = viewportHeight - rect.bottom;
         const spaceAbove = rect.top;
 
-        if (spaceBelow < this.cardMaxHeight && spaceAbove > spaceBelow) {
-            top = rect.top + scrollY - this.cardMaxHeight - 8;
+        if (spaceBelow < actualHeight + gap && spaceAbove > spaceBelow) {
+            top = rect.top - actualHeight - gap;
+        }
+
+        if (top + actualHeight > viewportHeight - margin) {
+            top = viewportHeight - actualHeight - margin;
+        }
+        if (top < margin) {
+            top = margin;
         }
 
         this.card.style.left = left + 'px';
         this.card.style.top = top + 'px';
-        this.card.style.width = this.cardWidth + 'px';
-        this.card.style.maxHeight = this.cardMaxHeight + 'px';
     }
 
     extractSummary(content, maxLength) {

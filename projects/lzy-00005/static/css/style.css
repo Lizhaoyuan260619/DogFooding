@@ -1188,7 +1188,7 @@ body.resizing {
 }
 
 .link-preview-card {
-    position: absolute;
+    position: fixed;
     z-index: 9999;
     background: #fff;
     border: 1px solid #e5e5e7;

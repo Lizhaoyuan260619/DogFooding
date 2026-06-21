@@ -187,44 +187,41 @@ class App {
     }
 
     initLinkPreviewEvents() {
-        this.els.notePreview.addEventListener('mouseover', (e) => {
-            const wikilink = e.target.closest('.wikilink');
-            if (wikilink) {
-                const noteId = wikilink.dataset.noteId;
-                if (noteId) {
-                    linkPreviewCard.show(noteId, wikilink);
-                }
-            }
-        });
-
-        this.els.notePreview.addEventListener('mouseout', (e) => {
-            const wikilink = e.target.closest('.wikilink');
-            if (wikilink && !e.relatedTarget?.closest('.wikilink') && !e.relatedTarget?.closest('.link-preview-card')) {
-                linkPreviewCard.hide();
-            }
-        });
-
-        this.els.backlinksList.addEventListener('mouseover', (e) => {
-            const linkChip = e.target.closest('.link-chip');
-            if (linkChip) {
-                const noteId = linkChip.dataset.noteId;
-                if (noteId) {
-                    linkPreviewCard.show(noteId, linkChip);
-                }
-            }
-        });
-
-        this.els.backlinksList.addEventListener('mouseout', (e) => {
-            const linkChip = e.target.closest('.link-chip');
-            if (linkChip && !e.relatedTarget?.closest('.link-chip') && !e.relatedTarget?.closest('.link-preview-card')) {
-                linkPreviewCard.hide();
-            }
-        });
+        this.bindPreviewHover(this.els.notePreview, '.wikilink');
+        this.bindPreviewHover(this.els.backlinksList, '.link-chip');
 
         document.addEventListener('link-preview-click', (e) => {
             if (e.detail?.noteId) {
                 this.loadNote(e.detail.noteId);
             }
+        });
+    }
+
+    bindPreviewHover(container, selector) {
+        if (!container) return;
+
+        container.addEventListener('mouseover', (e) => {
+            const target = e.target.closest(selector);
+            if (!target || !container.contains(target)) return;
+
+            const related = e.relatedTarget;
+            if (related && (target.contains(related) || related === target)) return;
+
+            const noteId = target.dataset.noteId;
+            if (noteId) {
+                linkPreviewCard.show(noteId, target);
+            }
+        });
+
+        container.addEventListener('mouseout', (e) => {
+            const target = e.target.closest(selector);
+            if (!target || !container.contains(target)) return;
+
+            const related = e.relatedTarget;
+            if (related && (target.contains(related) || related === target)) return;
+            if (related && related.closest('.link-preview-card')) return;
+
+            linkPreviewCard.leaveTrigger(target);
         });
     }
 
