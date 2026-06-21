@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zettelkasten - 个人知识管理</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Zettelkasten</h1>
+                <button id="newNoteBtn" class="btn btn-primary">+ 新建笔记</button>
+            </div>
+
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索笔记标题和内容...">
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="notes">笔记列表</button>
+                <button class="tab-btn" data-tab="graph">知识图谱</button>
+                <button class="tab-btn" data-tab="tags">标签</button>
+            </div>
+
+            <div class="tab-content" id="notes-tab">
+                <div id="notesList" class="notes-list"></div>
+            </div>
+
+            <div class="tab-content hidden" id="graph-tab">
+                <div class="graph-controls">
+                    <button id="refreshGraphBtn" class="btn btn-small">刷新图谱</button>
+                    <span class="zoom-info">缩放: <span id="zoomLevel">100%</span></span>
+                </div>
+                <div class="graph-container">
+                    <canvas id="graphCanvas"></canvas>
+                </div>
+                <div class="graph-legend">
+                    <span class="legend-item"><span class="legend-dot"></span> 当前笔记</span>
+                    <span class="legend-item"><span class="legend-dot linked"></span> 关联笔记</span>
+                    <span class="legend-item"><span class="legend-dot normal"></span> 其他笔记</span>
+                </div>
+            </div>
+
+            <div class="tab-content hidden" id="tags-tab">
+                <div id="tagsList" class="tags-list"></div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div id="editorPanel" class="editor-panel">
+                <div class="editor-header">
+                    <div class="note-meta" id="noteMeta"></div>
+                    <div class="editor-actions">
+                        <button id="saveNoteBtn" class="btn btn-primary">保存</button>
+                        <button id="deleteNoteBtn" class="btn btn-danger">删除</button>
+                        <button id="exportNoteBtn" class="btn">导出</button>
+                    </div>
+                </div>
+
+                <div class="editor-body">
+                    <div class="editor-section">
+                        <input type="text" id="noteTitle" placeholder="笔记标题..." class="note-title-input">
+                        <div class="tag-input-container">
+                            <div id="tagsContainer" class="tags-container"></div>
+                            <input type="text" id="tagInput" placeholder="添加标签后回车..." class="tag-input">
+                        </div>
+                        <textarea id="noteContent" placeholder="使用 Markdown 编写笔记内容，使用 [[笔记ID]] 创建双向链接..." class="note-content-input"></textarea>
+                    </div>
+                    <div class="preview-section">
+                        <div class="preview-header">预览</div>
+                        <div id="notePreview" class="note-preview"></div>
+                    </div>
+                </div>
+
+                <div class="links-section" id="linksSection">
+                    <div class="backlinks">
+                        <h3>反向链接</h3>
+                        <div id="backlinksList" class="links-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="emptyState" class="empty-state">
+                <div class="empty-state-content">
+                    <h2>📝 开始你的知识之旅</h2>
+                    <p>点击左侧「新建笔记」创建你的第一条笔记</p>
+                    <p class="hint">提示：使用 <code>[[笔记ID]]</code> 语法创建笔记间的双向链接</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>
