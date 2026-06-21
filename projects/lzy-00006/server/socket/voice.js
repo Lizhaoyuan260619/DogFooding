@@ -36,6 +36,7 @@ module.exports = function(io, socket, roomState) {
     socket.on('voice:join', async ({ roomCode }, callback) => {
         try {
             const state = roomState.get(socket.id);
+
             if (!state || state.roomCode !== roomCode) {
                 return callback({ success: false, error: '未加入房间' });
             }

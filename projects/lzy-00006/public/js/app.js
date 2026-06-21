@@ -86,8 +86,16 @@ function initUI() {
     renderLayerList();
 }
 
-function initSocket() {
+async function initSocket() {
     socketClient.connect();
+    
+    socketClient.socket.on('connect', async () => {
+        try {
+            await socketClient.joinRoom(currentRoomCode, currentUserName);
+        } catch (err) {
+            showToast('重新连接房间失败，请刷新页面重试', 'error');
+        }
+    });
     
     socketClient.setOnUserJoinedCallback(handleUserJoined);
     socketClient.setOnUserLeftCallback(handleUserLeft);
