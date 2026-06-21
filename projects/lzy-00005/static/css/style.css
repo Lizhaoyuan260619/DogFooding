@@ -12,18 +12,65 @@ body {
     overflow: hidden;
 }
 
+:root {
+    --sidebar-width: 320px;
+    --sidebar-min-width: 200px;
+    --sidebar-max-width: 600px;
+    --resizer-width: 6px;
+}
+
 .app-container {
     display: flex;
     height: 100vh;
+    overflow: hidden;
 }
 
 .sidebar {
-    width: 360px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-min-width);
+    max-width: var(--sidebar-max-width);
     background: #fff;
-    border-right: 1px solid #e5e5e7;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    flex-shrink: 0;
+}
+
+.resizer {
+    width: var(--resizer-width);
+    background: transparent;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.resizer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: #e5e5e7;
+    transform: translateX(-50%);
+    transition: background 0.2s;
+}
+
+.resizer:hover,
+.resizer.dragging {
+    background: rgba(0, 113, 227, 0.1);
+}
+
+.resizer:hover::before,
+.resizer.dragging::before {
+    background: #0071e3;
+    width: 2px;
+}
+
+body.resizing {
+    cursor: col-resize;
+    user-select: none;
 }
 
 .sidebar-header {
@@ -622,4 +669,142 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #86868b;
+}
+
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 260px;
+        --sidebar-min-width: 180px;
+    }
+
+    .sidebar-header {
+        padding: 14px;
+    }
+
+    .sidebar-header h1 {
+        font-size: 17px;
+        margin-bottom: 10px;
+    }
+
+    .search-box {
+        padding: 10px 14px;
+    }
+
+    .tabs {
+        padding: 6px 8px;
+    }
+
+    .tab-btn {
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+
+    .editor-header {
+        padding: 12px 16px;
+    }
+
+    .editor-section {
+        padding: 16px;
+    }
+
+    .note-title-input {
+        font-size: 20px;
+    }
+
+    .note-preview {
+        padding: 16px;
+    }
+
+    .links-section {
+        padding: 12px 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 220px;
+        --sidebar-min-width: 160px;
+    }
+
+    .editor-body {
+        flex-direction: column;
+    }
+
+    .editor-section {
+        flex: 1;
+        min-height: 50%;
+        border-right: none;
+        border-bottom: 1px solid #e5e5e7;
+    }
+
+    .preview-section {
+        flex: 1;
+        min-height: 50%;
+    }
+
+    .editor-actions {
+        gap: 4px;
+    }
+
+    .btn {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .btn-small {
+        padding: 4px 8px;
+    }
+}
+
+@media (max-width: 560px) {
+    .resizer {
+        display: none;
+    }
+
+    .sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 10;
+        box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
+        transform: translateX(0);
+        transition: transform 0.3s ease;
+    }
+
+    .sidebar.hidden-mobile {
+        transform: translateX(-100%);
+    }
+
+    .sidebar-header {
+        padding: 12px;
+    }
+
+    .sidebar-header h1 {
+        font-size: 16px;
+    }
+
+    .editor-header {
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .note-meta {
+        font-size: 11px;
+        width: 100%;
+    }
+
+    .note-title-input {
+        font-size: 18px;
+        margin-bottom: 8px;
+    }
+
+    .editor-section {
+        padding: 12px;
+    }
+
+    .note-preview {
+        padding: 12px;
+    }
 }

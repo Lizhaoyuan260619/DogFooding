@@ -73,6 +73,8 @@ class App {
 
     initElements() {
         this.els = {
+            sidebar: document.querySelector('.sidebar'),
+            resizer: document.getElementById('resizer'),
             newNoteBtn: document.getElementById('newNoteBtn'),
             saveNoteBtn: document.getElementById('saveNoteBtn'),
             deleteNoteBtn: document.getElementById('deleteNoteBtn'),
@@ -147,6 +149,52 @@ class App {
         });
 
         this.els.refreshGraphBtn.addEventListener('click', () => this.loadGraph());
+
+        this.initResizer();
+    }
+
+    initResizer() {
+        const resizer = this.els.resizer;
+        const sidebar = this.els.sidebar;
+        if (!resizer || !sidebar) return;
+
+        const minWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-min-width')) || 180;
+        const maxWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-max-width')) || 600;
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        const onMouseDown = (e) => {
+            if (window.innerWidth <= 560) return;
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = sidebar.getBoundingClientRect().width;
+            resizer.classList.add('dragging');
+            document.body.classList.add('resizing');
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e) => {
+            if (!isResizing) return;
+            const delta = e.clientX - startX;
+            let newWidth = startWidth + delta;
+            newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+        };
+
+        const onMouseUp = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            resizer.classList.remove('dragging');
+            document.body.classList.remove('resizing');
+            if (this.graphRenderer) {
+                setTimeout(() => this.graphRenderer.render(), 50);
+            }
+        };
+
+        resizer.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     }
 
     async init() {

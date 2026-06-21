@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template
-from models.database import init_db
+from models.database import init_db, close_db
 from blueprints.notes.routes import notes_bp
 from blueprints.graph.routes import graph_bp
 from blueprints.search.routes import search_bp
@@ -10,6 +10,8 @@ def create_app():
     app = Flask(__name__, static_folder='static', template_folder='templates')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     app.config['DATABASE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'zettelkasten.db')
+
+    app.teardown_appcontext(close_db)
 
     with app.app_context():
         init_db()
