@@ -6,11 +6,11 @@ import {
   Clock, TrendingUp, Pilcrow, Ear, Eye, Hand, Shield, Wind,
   Check,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { getToday, getStreak, getTotalCheckIns, isCheckedIn } from '@/utils/date'
 import WeekOverview from '@/components/WeekOverview'
 import type { Habit } from '@/types'
+import type { LucideIcon } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   Dumbbell, BookOpen, Droplets, Moon, Apple, Brain, Heart,

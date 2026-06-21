@@ -5,10 +5,10 @@ import {
   Palette, Code, Leaf, Zap, Star, Trophy, Target, Smile,
   Clock, TrendingUp, Pilcrow, Ear, Eye, Hand, Shield, Wind,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { getCompletionRate, formatDate } from '@/utils/date'
 import { parseISO } from 'date-fns'
+import type { LucideIcon } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   Dumbbell, BookOpen, Droplets, Moon, Apple, Brain, Heart,

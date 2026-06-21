@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Plus, Sparkles, Target, Flame, CheckCircle2, TrendingUp } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { getToday, formatDate, getStreak, isCheckedIn } from '@/utils/date'
+import { getToday, formatDate, getStreak, isCheckedIn, getTotalCheckIns } from '@/utils/date'
 import HabitCard from '@/components/HabitCard'
 
 export default function Dashboard() {
@@ -20,6 +20,9 @@ export default function Dashboard() {
     const streak = getStreak(h.id, checkIns)
     return streak > max ? streak : max
   }, 0)
+
+  const totalCheckIns = habits.reduce((sum, h) => sum + getTotalCheckIns(h.id, checkIns), 0)
+  void totalCheckIns
 
   if (habits.length === 0) {
     return (

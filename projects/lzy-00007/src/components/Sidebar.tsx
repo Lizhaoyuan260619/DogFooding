@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, ListChecks, CalendarDays, BarChart3, Settings } from 'lucide-react'
+import { LayoutDashboard, ListChecks, CalendarDays, BarChart3, Settings, Trophy, Users } from 'lucide-react'
 
 const navItems = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard },
   { to: '/habits', label: '习惯管理', icon: ListChecks },
   { to: '/calendar', label: '日历热力图', icon: CalendarDays },
   { to: '/stats', label: '统计分析', icon: BarChart3 },
+  { to: '/achievements', label: '成就中心', icon: Trophy },
+  { to: '/circle', label: '打卡圈', icon: Users },
   { to: '/settings', label: '设置', icon: Settings },
 ]
 

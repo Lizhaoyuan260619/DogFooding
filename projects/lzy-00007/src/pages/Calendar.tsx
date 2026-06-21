@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { CheckCircle2, Circle } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { getCheckInsByDate, getToday } from '@/utils/date'
 import HeatmapCalendar from '@/components/HeatmapCalendar'
@@ -10,6 +9,7 @@ import {
   Palette, Code, Leaf, Zap, Star, Trophy, Target, Smile,
   Clock, TrendingUp, Pilcrow, Ear, Eye, Hand, Shield, Wind,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   Dumbbell, BookOpen, Droplets, Moon, Apple, Brain, Heart,

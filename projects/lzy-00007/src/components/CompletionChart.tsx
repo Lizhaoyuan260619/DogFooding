@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
-import type { TooltipItem } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
 import { useAppStore } from '@/store/useAppStore'
 import { getCompletionRate, formatDate } from '@/utils/date'
@@ -71,7 +70,7 @@ export default function CompletionChart({ period }: CompletionChartProps) {
         padding: 10,
         cornerRadius: 8,
         callbacks: {
-          label: (ctx: TooltipItem<'bar'>) => {
+          label: (ctx: { parsed: { y: number } }) => {
             const rate = ctx.parsed.y
             const label = rate >= 80 ? ' 🎯 优秀' : rate >= 50 ? ' 👍 良好' : ' 💪 加油'
             return `完成率: ${rate}%${label}`
@@ -84,7 +83,7 @@ export default function CompletionChart({ period }: CompletionChartProps) {
         beginAtZero: true,
         max: 100,
         ticks: {
-          callback: (value: string | number) => `${value}%`,
+          callback: (value: number | string) => `${value}%`,
           font: { size: 10 },
         },
         grid: { color: '#f3f4f6' },

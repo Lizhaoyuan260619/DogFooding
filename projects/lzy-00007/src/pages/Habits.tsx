@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Plus, Pencil, Trash2, History } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { getStreak, getTotalCheckIns, isCheckedIn, getToday, formatDate } from '@/utils/date'
 import HabitForm from '@/components/HabitForm'
@@ -10,6 +9,7 @@ import {
   Palette, Code, Leaf, Zap, Star, Trophy, Target, Smile,
   Clock, TrendingUp, Pilcrow, Ear, Eye, Hand, Shield, Wind,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   Dumbbell, BookOpen, Droplets, Moon, Apple, Brain, Heart,

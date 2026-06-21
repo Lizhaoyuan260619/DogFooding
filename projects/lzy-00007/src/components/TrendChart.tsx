@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Chart as ChartJS, PointElement, LineElement, CategoryScale, LinearScale, Title, Tooltip, Legend, Filler } from 'chart.js'
-import type { TooltipItem } from 'chart.js'
 import { Line } from 'react-chartjs-2'
 import { useAppStore } from '@/store/useAppStore'
 import { formatDate } from '@/utils/date'
@@ -87,8 +86,10 @@ export default function TrendChart({ period }: TrendChartProps) {
         padding: 10,
         cornerRadius: 8,
         callbacks: {
-          label: (ctx: TooltipItem<'line'>) => {
-            return `${ctx.dataset.label}: ${ctx.parsed.y ? '✓ 已完成' : '○ 未完成'}`
+          label: (ctx) => {
+            const label = ctx.dataset.label || ''
+            const y = ctx.parsed?.y as number | undefined
+            return `${label}: ${y ? '✓ 已完成' : '○ 未完成'}`
           },
         },
       },
@@ -99,7 +100,7 @@ export default function TrendChart({ period }: TrendChartProps) {
         max: 1,
         ticks: {
           stepSize: 1,
-          callback: (value: string | number) => value === 1 ? '完成' : value === 0 ? '未完成' : '',
+          callback: (value: number | string) => value === 1 ? '完成' : value === 0 ? '未完成' : '',
           font: { size: 10 },
         },
         grid: { color: '#f3f4f6' },

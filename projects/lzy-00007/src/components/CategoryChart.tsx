@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'
-import type { TooltipItem } from 'chart.js'
 import { useAppStore } from '@/store/useAppStore'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
@@ -55,7 +54,7 @@ export default function CategoryChart() {
       title: { display: false },
       tooltip: {
         callbacks: {
-          label: (ctx: TooltipItem<'doughnut'>) => {
+          label: (ctx: { parsed: number; label: string; dataset: { data: number[] } }) => {
             const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0)
             const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0
             return `${ctx.label}: ${ctx.parsed}次 (${pct}%)`
