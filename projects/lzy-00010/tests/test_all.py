@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-文件自动整理工具 - 测试用例
+文件自动整理工具 - 单元测试（使用隔离测试基类）
 """
 
 import os
@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from tests.test_utils import IsolatedTestCase, run_tests_random_order
 from file_organizer.database import Database
 from file_organizer.rule_engine import RuleEngine, RuleMatcher, FileInfo
 from file_organizer.file_operator import FileOperator, FileOperation, ActionType
@@ -21,15 +22,11 @@ from file_organizer.organizer import OrganizerEngine
 from file_organizer.templates import TemplateManager
 
 
-class TestDatabase(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.temp_dir, "test.db")
-        self.db = Database(self.db_path)
+class TestDatabase(IsolatedTestCase):
+    """数据库层测试"""
 
-    def tearDown(self):
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+    def setUp_test(self):
+        self.db = self.get_db()
 
     def test_add_and_get_rule(self):
         rule_id = self.db.add_rule("测试规则", "这是一个测试规则", priority=10)
@@ -133,27 +130,16 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(rule["actions"]), 1)
 
 
-class TestRuleEngine(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
+class TestRuleEngine(IsolatedTestCase):
+    """规则引擎测试"""
+
+    def setUp_test(self):
         self._create_test_files()
 
-    def tearDown(self):
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
-
     def _create_test_files(self):
-        self.test_file_jpg = os.path.join(self.temp_dir, "test.jpg")
-        with open(self.test_file_jpg, 'w') as f:
-            f.write("x" * 1024)
-
-        self.test_file_txt = os.path.join(self.temp_dir, "document.txt")
-        with open(self.test_file_txt, 'w') as f:
-            f.write("x" * 500)
-
-        self.test_file_pdf = os.path.join(self.temp_dir, "report.pdf")
-        with open(self.test_file_pdf, 'w') as f:
-            f.write("x" * 3000)
+        self.test_file_jpg = self.create_test_file("test.jpg", "x" * 1024)
+        self.test_file_txt = self.create_test_file("document.txt", "x" * 500)
+        self.test_file_pdf = self.create_test_file("report.pdf", "x" * 3000)
 
         old_date = datetime.now() - timedelta(days=60)
         old_time = old_date.timestamp()
@@ -356,20 +342,13 @@ class TestRuleEngine(unittest.TestCase):
         self.assertGreater(len(results), 0)
 
 
-class TestFileOperator(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.source_dir = os.path.join(self.temp_dir, "source")
+class TestFileOperator(IsolatedTestCase):
+    """文件操作引擎测试"""
+
+    def setUp_test(self):
+        self.source_dir = self.create_subdir("source")
         self.target_dir = os.path.join(self.temp_dir, "target")
-        os.makedirs(self.source_dir, exist_ok=True)
-
-        self.test_file = os.path.join(self.source_dir, "test.txt")
-        with open(self.test_file, 'w') as f:
-            f.write("Hello World")
-
-    def tearDown(self):
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+        self.test_file = self.create_test_file("source/test.txt", "Hello World")
 
     def test_move_file(self):
         operator = FileOperator(dry_run=False)
@@ -441,32 +420,26 @@ class TestFileOperator(unittest.TestCase):
         self.assertTrue(os.path.exists(extracted_file))
 
 
-class TestOrganizerEngine(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.temp_dir, "test.db")
-        self.db = Database(self.db_path)
+class TestOrganizerEngine(IsolatedTestCase):
+    """整理引擎测试（含撤销功能）"""
 
-        self.source_dir = os.path.join(self.temp_dir, "source")
-        os.makedirs(self.source_dir, exist_ok=True)
-
+    def setUp_test(self):
+        self.source_dir = self.create_subdir("source")
         self._create_test_files()
         self._create_test_rules()
-
-    def tearDown(self):
-        if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+        self.db = self.get_db()
+        self.engine = OrganizerEngine(db=self.db)
 
     def _create_test_files(self):
         for i in range(3):
-            with open(os.path.join(self.source_dir, f"image{i}.jpg"), 'w') as f:
-                f.write("x" * 1024)
+            self.create_test_file(f"source/image{i}.jpg", "x" * 1024)
 
         for i in range(2):
-            with open(os.path.join(self.source_dir, f"doc{i}.txt"), 'w') as f:
-                f.write("document content")
+            self.create_test_file(f"source/doc{i}.txt", "document content")
 
     def _create_test_rules(self):
+        db = self.get_db()
+        images_dir = os.path.join(self.temp_dir, "Images")
         rule_data = {
             "name": "图片分类",
             "description": "将图片移动到Images文件夹",
@@ -480,18 +453,17 @@ class TestOrganizerEngine(unittest.TestCase):
                 {
                     "action_type": "move",
                     "action_params": {
-                        "target_dir": os.path.join(self.source_dir, "Images"),
+                        "target_dir": images_dir,
                         "new_name": ""
                     },
                     "sort_order": 0
                 }
             ]
         }
-        self.db.save_rule_complete(rule_data)
+        db.save_rule_complete(rule_data)
 
     def test_organize_dry_run(self):
-        engine = OrganizerEngine(db=self.db)
-        result = engine.organize([self.source_dir], dry_run=True)
+        result = self.engine.organize([self.source_dir], dry_run=True)
 
         self.assertTrue(result["success"])
         self.assertEqual(result["dry_run"], True)
@@ -502,28 +474,25 @@ class TestOrganizerEngine(unittest.TestCase):
                 self.assertTrue(f.endswith('.jpg') or f.endswith('.txt'))
 
     def test_organize_execute(self):
-        engine = OrganizerEngine(db=self.db)
-        result = engine.organize([self.source_dir], dry_run=False)
+        result = self.engine.organize([self.source_dir], dry_run=False)
 
         self.assertTrue(result["success"])
         self.assertGreater(result["success_count"], 0)
 
-        images_dir = os.path.join(self.source_dir, "Images")
+        images_dir = os.path.join(self.temp_dir, "Images")
         self.assertTrue(os.path.isdir(images_dir))
 
         image_files = [f for f in os.listdir(images_dir) if f.endswith('.jpg')]
         self.assertEqual(len(image_files), 3)
 
     def test_undo_operation(self):
-        engine = OrganizerEngine(db=self.db)
-
-        organize_result = engine.organize([self.source_dir], dry_run=False)
+        organize_result = self.engine.organize([self.source_dir], dry_run=False)
         self.assertTrue(organize_result["success"])
 
-        images_dir = os.path.join(self.source_dir, "Images")
+        images_dir = os.path.join(self.temp_dir, "Images")
         self.assertTrue(os.path.isdir(images_dir))
 
-        undo_result = engine.undo(organize_result["batch_id"])
+        undo_result = self.engine.undo(organize_result["batch_id"])
         self.assertTrue(undo_result["success"])
         self.assertGreater(undo_result["success_count"], 0)
 
@@ -532,8 +501,54 @@ class TestOrganizerEngine(unittest.TestCase):
         jpg_files = [f for f in source_files if f.endswith('.jpg')]
         self.assertEqual(len(jpg_files), 3)
 
+    def test_undo_with_intermediate_operations(self):
+        db = self.get_db()
+        docs_dir = os.path.join(self.temp_dir, "Docs")
+        doc_rule = {
+            "name": "文档分类",
+            "priority": 5,
+            "enabled": True,
+            "logic_operator": "AND",
+            "conditions": [
+                {"condition_type": "file_type", "condition_value": "document"}
+            ],
+            "actions": [
+                {"action_type": "move", "action_params": {"target_dir": docs_dir}}
+            ]
+        }
+        db.save_rule_complete(doc_rule)
+        self.engine = OrganizerEngine(db=db)
+
+        result1 = self.engine.organize([self.source_dir], dry_run=False)
+        self.assertTrue(result1["success"])
+        self.assertGreater(result1["success_count"], 0)
+
+        images_dir = os.path.join(self.temp_dir, "Images")
+        self.assertTrue(os.path.isdir(images_dir))
+        self.assertTrue(os.path.isdir(docs_dir))
+
+        extra_doc = os.path.join(self.source_dir, "extra_doc.txt")
+        with open(extra_doc, 'w') as f:
+            f.write("extra document")
+
+        result2 = self.engine.organize([self.source_dir], dry_run=False)
+        self.assertTrue(result2["success"])
+
+        undo_result = self.engine.undo(result1["batch_id"])
+        self.assertTrue(undo_result["success"])
+        self.assertGreater(undo_result["success_count"], 0)
+
+        self.assertTrue(os.path.isdir(docs_dir))
+        doc_files = [f for f in os.listdir(docs_dir)
+                    if os.path.isfile(os.path.join(docs_dir, f))]
+        self.assertGreater(len(doc_files), 0)
+
+        source_files = [f for f in os.listdir(self.source_dir)
+                       if os.path.isfile(os.path.join(self.source_dir, f))]
+        jpg_files = [f for f in source_files if f.endswith('.jpg')]
+        self.assertEqual(len(jpg_files), 3)
+
     def test_test_rule(self):
-        engine = OrganizerEngine(db=self.db)
         rule = self.db.get_all_rules()[0]
 
         test_files = [
@@ -541,13 +556,18 @@ class TestOrganizerEngine(unittest.TestCase):
             os.path.join(self.source_dir, "doc0.txt")
         ]
 
-        results = engine.test_rule(rule, test_files)
+        results = self.engine.test_rule(rule, test_files)
         self.assertEqual(len(results), 2)
         self.assertTrue(results[0]["matched"])
         self.assertFalse(results[1]["matched"])
 
 
-class TestTemplates(unittest.TestCase):
+class TestTemplates(IsolatedTestCase):
+    """模板功能测试"""
+
+    def setUp_test(self):
+        self.db = self.get_db()
+
     def test_get_all_templates(self):
         templates = TemplateManager.get_all_templates()
         self.assertEqual(len(templates), 5)
@@ -592,18 +612,102 @@ class TestTemplates(unittest.TestCase):
         self.assertEqual(len(rules), 1)
 
     def test_apply_template_to_db(self):
-        temp_dir = tempfile.mkdtemp()
-        try:
-            db_path = os.path.join(temp_dir, "test.db")
-            db = Database(db_path)
+        rule_ids = TemplateManager.apply_template(self.db, "extension_sort", {"target_dir": ""})
+        self.assertGreater(len(rule_ids), 0)
 
-            rule_ids = TemplateManager.apply_template(db, "extension_sort", {"target_dir": ""})
-            self.assertGreater(len(rule_ids), 0)
+        rules = self.db.get_all_rules()
+        self.assertEqual(len(rules), len(rule_ids))
 
-            rules = db.get_all_rules()
-            self.assertEqual(len(rules), len(rule_ids))
-        finally:
-            shutil.rmtree(temp_dir)
+
+class TestIsolationVerification(unittest.TestCase):
+    """测试隔离性验证 - 确保测试之间不会相互干扰"""
+
+    def test_organize_undo_isolation_1(self):
+        """第一轮整理-撤销测试"""
+        from tests.test_utils import TestEnvironmentSandbox
+
+        with TestEnvironmentSandbox("iso_test1") as sandbox:
+            src_dir = os.path.join(sandbox.temp_dir, "src")
+            os.makedirs(src_dir, exist_ok=True)
+            sandbox.create_file("src/a.jpg", "aaa")
+            sandbox.create_file("src/b.txt", "bbb")
+            sandbox.create_file("src/c.png", "ccc")
+
+            db = sandbox.get_db()
+            images_dir = os.path.join(sandbox.temp_dir, "Images")
+            rule_data = {
+                "name": "图片规则",
+                "priority": 10,
+                "enabled": True,
+                "logic_operator": "AND",
+                "conditions": [{"condition_type": "file_type", "condition_value": "image"}],
+                "actions": [{"action_type": "move", "action_params": {"target_dir": images_dir}}]
+            }
+            db.save_rule_complete(rule_data)
+
+            engine = sandbox.get_engine()
+            result = engine.organize([src_dir], dry_run=False)
+            self.assertEqual(result["success_count"], 2)
+
+            undo_result = engine.undo(result["batch_id"])
+            self.assertEqual(undo_result["success_count"], 2)
+
+            files = [f for f in os.listdir(src_dir)
+                    if os.path.isfile(os.path.join(src_dir, f))]
+            self.assertEqual(len(files), 3)
+
+    def test_organize_undo_isolation_2(self):
+        """第二轮整理-撤销测试 - 验证与第一轮独立"""
+        from tests.test_utils import TestEnvironmentSandbox
+
+        with TestEnvironmentSandbox("iso_test2") as sandbox:
+            src_dir = os.path.join(sandbox.temp_dir, "src")
+            os.makedirs(src_dir, exist_ok=True)
+            sandbox.create_file("src/x.jpg", "xxx")
+            sandbox.create_file("src/y.docx", "yyy")
+            sandbox.create_file("src/z.mp3", "zzz")
+
+            db = sandbox.get_db()
+            pics_dir = os.path.join(sandbox.temp_dir, "Pics")
+            rule_data = {
+                "name": "图片规则",
+                "priority": 10,
+                "enabled": True,
+                "logic_operator": "AND",
+                "conditions": [{"condition_type": "file_type", "condition_value": "image"}],
+                "actions": [{"action_type": "move", "action_params": {"target_dir": pics_dir}}]
+            }
+            db.save_rule_complete(rule_data)
+
+            engine = sandbox.get_engine()
+            result = engine.organize([src_dir], dry_run=False)
+            self.assertEqual(result["success_count"], 1)
+
+            undo_result = engine.undo(result["batch_id"])
+            self.assertEqual(undo_result["success_count"], 1)
+
+            files = [f for f in os.listdir(src_dir)
+                    if os.path.isfile(os.path.join(src_dir, f))]
+            self.assertEqual(len(files), 3)
+
+    def test_unique_path_isolation(self):
+        """同名文件处理测试 - 独立环境验证"""
+        from tests.test_utils import TestEnvironmentSandbox
+
+        with TestEnvironmentSandbox("iso_unique") as sandbox:
+            sandbox.create_file("source/test.txt", "original")
+            sandbox.create_file("target/test.txt", "existing")
+
+            source = os.path.join(sandbox.temp_dir, "source", "test.txt")
+            target = os.path.join(sandbox.temp_dir, "target")
+
+            operator = FileOperator(dry_run=False)
+            op = operator.move(source, target)
+
+            self.assertEqual(op.status, "success")
+            self.assertTrue("(1)" in os.path.basename(op.target_path))
+            self.assertTrue(os.path.exists(os.path.join(target, "test.txt")))
+            self.assertTrue(os.path.exists(os.path.join(target, "test(1).txt")))
 
 
 def run_tests():
@@ -615,6 +719,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestFileOperator))
     suite.addTests(loader.loadTestsFromTestCase(TestOrganizerEngine))
     suite.addTests(loader.loadTestsFromTestCase(TestTemplates))
+    suite.addTests(loader.loadTestsFromTestCase(TestIsolationVerification))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -630,9 +735,35 @@ def run_tests():
         for test, traceback in result.failures:
             print(f"  - {test}")
 
+    if result.errors:
+        print("\n错误的测试:")
+        for test, traceback in result.errors:
+            print(f"  - {test}")
+
     return result.wasSuccessful()
 
 
+def run_isolation_verification():
+    """运行隔离性验证"""
+    print("=" * 60)
+    print("测试隔离性验证 - 多轮随机顺序测试")
+    print("=" * 60)
+
+    test_cases = [
+        TestDatabase,
+        TestRuleEngine,
+        TestFileOperator,
+        TestOrganizerEngine,
+        TestTemplates,
+        TestIsolationVerification,
+    ]
+
+    return run_tests_random_order(test_cases, iterations=5)
+
+
 if __name__ == "__main__":
-    success = run_tests()
+    if len(sys.argv) > 1 and sys.argv[1] == "--isolation":
+        success = run_isolation_verification()
+    else:
+        success = run_tests()
     sys.exit(0 if success else 1)
