@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoVault - 加密通信工具</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+:root {
+  --bg-deep: #0a0e17;
+  --bg-primary: #0f1623;
+  --bg-secondary: #151d2e;
+  --bg-card: #1a2438;
+  --bg-input: #0d1321;
+  --border: #1e2d45;
+  --border-focus: #00e5a0;
+  --text-primary: #e8ecf4;
+  --text-secondary: #8899b4;
+  --text-muted: #4a5d7a;
+  --accent: #00e5a0;
+  --accent-dim: rgba(0, 229, 160, 0.12);
+  --accent-glow: rgba(0, 229, 160, 0.25);
+  --danger: #ff4d6a;
+  --danger-dim: rgba(255, 77, 106, 0.12);
+  --warning: #ffb84d;
+  --warning-dim: rgba(255, 184, 77, 0.12);
+  --info: #4da6ff;
+  --info-dim: rgba(77, 166, 255, 0.12);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --font-sans: 'Noto Sans SC', -apple-system, sans-serif;
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+::selection { background: var(--accent-glow); color: var(--text-primary); }
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.sidebar-logo {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-logo .logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--accent), #00b87a);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.sidebar-logo .logo-text {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-logo .logo-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 8px;
+  overflow-y: auto;
+}
+
+.nav-group {
+  margin-bottom: 8px;
+}
+
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  padding: 8px 12px 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-size: 13px;
+  color: var(--text-secondary);
+  position: relative;
+}
+
+.nav-item:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+.nav-item .nav-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.nav-item .nav-shortcut {
+  margin-left: auto;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--bg-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background var(--transition);
+}
+
+.status-dot.online { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-header {
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-primary);
+}
+
+.main-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.main-header h1 .header-icon {
+  color: var(--accent);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.main-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.25s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: border-color var(--transition);
+}
+
+.card:hover { border-color: var(--text-muted); }
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-title .card-icon { color: var(--accent); }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group.full { grid-column: 1 / -1; }
+
+.form-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-input, .form-textarea, .form-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+  outline: none;
+}
+
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.form-input::placeholder, .form-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.form-textarea {
+  min-height: 80px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5d7a' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-top: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+  box-shadow: var(--shadow);
+}
+
+.autocomplete-list.show { display: block; }
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.autocomplete-item:hover, .autocomplete-item.highlighted {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition);
+  outline: none;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-deep);
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  background: #00ffb2;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger-dim);
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.btn-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table tr:hover td {
+  background: var(--bg-secondary);
+}
+
+.data-table .mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.data-table .actions {
+  display: flex;
+  gap: 6px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.empty-state .empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.empty-state .empty-text {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.empty-state .empty-hint {
+  font-size: 12px;
+}
+
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  animation: slideIn 0.3s ease;
+  max-width: 400px;
+  border: 1px solid;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.toast.success { background: rgba(0, 229, 160, 0.1); border-color: rgba(0, 229, 160, 0.3); color: var(--accent); }
+.toast.error { background: rgba(255, 77, 106, 0.1); border-color: rgba(255, 77, 106, 0.3); color: var(--danger); }
+.toast.warning { background: rgba(255, 184, 77, 0.1); border-color: rgba(255, 184, 77, 0.3); color: var(--warning); }
+.toast.info { background: rgba(77, 166, 255, 0.1); border-color: rgba(77, 166, 255, 0.3); color: var(--info); }
+
+.result-box {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.result-box.success { border-color: rgba(0, 229, 160, 0.3); }
+.result-box.error { border-color: rgba(255, 77, 106, 0.3); color: var(--danger); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.badge-success { background: var(--accent-dim); color: var(--accent); }
+.badge-danger { background: var(--danger-dim); color: var(--danger); }
+.badge-warning { background: var(--warning-dim); color: var(--warning); }
+.badge-info { background: var(--info-dim); color: var(--info); }
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  user-select: none;
+  transition: color var(--transition);
+}
+
+.password-toggle:hover { color: var(--text-secondary); }
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+
+.confirm-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.confirm-dialog h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.confirm-dialog p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.shortcut-item kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg-deep);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-item {
+  padding: 10px 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition);
+}
+
+.tab-item:hover { color: var(--text-secondary); }
+
+.tab-item.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+.stat-card .stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .section-grid { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .stat-cards { grid-template-columns: 1fr; }
+  .shortcut-grid { grid-template-columns: 1fr; }
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+.signature-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.signature-status.valid { background: var(--accent-dim); color: var(--accent); }
+.signature-status.invalid { background: var(--danger-dim); color: var(--danger); }
+.signature-status.unknown { background: var(--warning-dim); color: var(--warning); }
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ========== Enhanced Autocomplete (fuzzy search) ========== */
+.autocomplete-list .ac-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.autocomplete-item mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ========== Inline field errors / hints ========== */
+.form-error-text {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 2px;
+  display: none;
+  align-items: center;
+  gap: 4px;
+}
+.form-error-text.show { display: flex; }
+.form-input.input-error,
+.form-textarea.input-error,
+.form-select.input-error {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px var(--danger-dim);
+}
+.form-input.input-ok,
+.form-textarea.input-ok {
+  border-color: var(--accent) !important;
+}
+.field-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.field-help .help-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  color: var(--info);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+/* ========== Command Palette ========== */
+.palette-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  animation: fadeIn 0.15s ease;
+}
+.palette-overlay.show { display: flex; }
+.palette {
+  width: min(640px, 92vw);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--accent-glow);
+  overflow: hidden;
+  animation: paletteIn 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes paletteIn {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.palette-input-wrap .palette-icon {
+  color: var(--accent);
+  font-size: 16px;
+}
+.palette-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: var(--font-sans);
+}
+.palette-input::placeholder { color: var(--text-muted); }
+.palette-input::-webkit-scrollbar { display: none; }
+.palette-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-primary);
+}
+.palette-footer .keys { display: flex; gap: 10px; align-items: center; }
+.palette-footer kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.palette-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.palette-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  padding: 8px 16px 4px;
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.12s;
+}
+.palette-item:hover,
+.palette-item.active {
+  background: var(--bg-secondary);
+  border-left-color: var(--accent);
+}
+.palette-item .pi-icon {
+  width: 28px;
+  text-align: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.palette-item .pi-body {
+  flex: 1;
+  min-width: 0;
+}
+.palette-item .pi-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.palette-item .pi-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.palette-item .pi-title mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+.palette-item .pi-shortcut {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.palette-item .pi-shortcut kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.palette-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ========== Floating Action Button (FAB) ========== */
+.fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #00b87a);
+  color: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 229, 160, 0.35), 0 0 0 3px var(--accent-dim);
+  z-index: 500;
+  transition: transform 0.2s, box-shadow 0.2s;
+  font-size: 22px;
+  border: none;
+}
+.fab:hover {
+  transform: scale(1.08) rotate(15deg);
+  box-shadow: 0 12px 32px rgba(0, 229, 160, 0.5);
+}
+.fab-label {
+  position: absolute;
+  right: 64px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  box-shadow: var(--shadow);
+}
+.fab:hover .fab-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ========== Quick Action Bar (mobile-friendly) ========== */
+.quick-bar {
+  display: none;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.quick-bar .qb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.quick-bar .qb-chip:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+@media (max-width: 900px) {
+  .quick-bar { display: flex; }
+}
+
+/* ========== Help Tour / Onboarding ========== */
+.tour-tip {
+  position: absolute;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-primary);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-width: 260px;
+  z-index: 3000;
+  animation: fadeIn 0.2s ease;
+}
+.tour-tip::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 20px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  transform: rotate(45deg);
+}
+.tour-tip .tour-title {
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.tour-tip .tour-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tour-tip .tour-actions button {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+/* ========== Result box with action row ========== */
+.result-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.result-actions .btn {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+/* ========== Sidebar search ========== */
+.sidebar-search {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-search-input {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px 7px 30px;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: all var(--transition);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5d7a' d='M8 7l3 3-1 1-3-3-3 3-1-1 3-3-4-4V2h2l4 4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+.sidebar-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+.sidebar-search-input::placeholder { color: var(--text-muted); }
+.sidebar-search-shortcut {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-secondary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.nav-item.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🔐</div>
+      <div>
+        <div class="logo-text">CryptoVault</div>
+        <div class="logo-sub">加密通信工具</div>
+      </div>
+    </div>
+    <div class="sidebar-search" style="position:relative">
+      <input type="text" class="sidebar-search-input" id="sidebarSearch" placeholder="搜索功能 / Ctrl+K 命令面板" title="输入关键字过滤菜单；按 Ctrl+K 打开命令面板">
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-group">
+        <div class="nav-group-label">概览</div>
+        <div class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+          <span class="nav-icon">📊</span> 仪表盘 <span class="nav-shortcut">⌘1</span>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">密钥管理</div>
+        <div class="nav-item" data-page="keys" onclick="navigateTo('keys')">
+          <span class="nav-icon">🔑</span> 密钥对 <span class="nav-shortcut">⌘2</span>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">联系人</div>
+        <div class="nav-item" data-page="contacts" onclick="navigateTo('contacts')">
+          <span class="nav-icon">👤</span> 联系人 <span class="nav-shortcut">⌘3</span>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">消息操作</div>
+        <div class="nav-item" data-page="encrypt" onclick="navigateTo('encrypt')">
+          <span class="nav-icon">🔒</span> 加密消息 <span class="nav-shortcut">⌘4</span>
+        </div>
+        <div class="nav-item" data-page="decrypt" onclick="navigateTo('decrypt')">
+          <span class="nav-icon">🔓</span> 解密消息 <span class="nav-shortcut">⌘5</span>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">签名</div>
+        <div class="nav-item" data-page="sign" onclick="navigateTo('sign')">
+          <span class="nav-icon">✍️</span> 签名 <span class="nav-shortcut">⌘6</span>
+        </div>
+        <div class="nav-item" data-page="verify" onclick="navigateTo('verify')">
+          <span class="nav-icon">✅</span> 验证 <span class="nav-shortcut">⌘7</span>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">工具</div>
+        <div class="nav-item" data-page="shred" onclick="navigateTo('shred')">
+          <span class="nav-icon">🗑️</span> 安全删除 <span class="nav-shortcut">⌘8</span>
+        </div>
+        <div class="nav-item" data-page="shortcuts" onclick="navigateTo('shortcuts')">
+          <span class="nav-icon">⌨️</span> 快捷键
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-bar">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">连接中...</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="main-header">
+      <h1><span class="header-icon" id="pageTitle">📊</span> <span id="pageName">仪表盘</span></h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="initDatabase()" title="重新初始化数据库">🔄 初始化数据库</button>
+      </div>
+    </header>
+
+    <div class="main-body">
+
+      <!-- Dashboard -->
+      <div class="page active" id="page-dashboard">
+        <div class="quick-bar" id="quickBar">
+          <div class="qb-chip" onclick="openPalette()">🔍 命令面板 <kbd style="font-family:var(--font-mono);font-size:10px;background:var(--bg-deep);padding:1px 5px;border-radius:3px;border:1px solid var(--border)">Ctrl+K</kbd></div>
+          <div class="qb-chip" onclick="navigateTo('encrypt')">🔒 加密</div>
+          <div class="qb-chip" onclick="navigateTo('decrypt')">🔓 解密</div>
+          <div class="qb-chip" onclick="navigateTo('keys')">🔑 密钥</div>
+          <div class="qb-chip" onclick="navigateTo('contacts')">👤 联系人</div>
+          <div class="qb-chip" onclick="navigateTo('help')">📘 使用说明</div>
+        </div>
+        <div class="stat-cards" id="statCards">
+          <div class="stat-card"><div class="stat-value" id="keyCount">-</div><div class="stat-label">密钥对</div></div>
+          <div class="stat-card"><div class="stat-value" id="contactCount">-</div><div class="stat-label">联系人</div></div>
+          <div class="stat-card"><div class="stat-value" id="dbStatus">-</div><div class="stat-label">数据库</div></div>
+        </div>
+        <div class="section-grid">
+          <div class="card">
+            <div class="card-title"><span class="card-icon">⚡</span> 快捷操作</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn btn-secondary" onclick="navigateTo('keys')" style="justify-content:flex-start">🔑 管理密钥对</button>
+              <button class="btn btn-secondary" onclick="navigateTo('encrypt')" style="justify-content:flex-start">🔒 加密一条消息</button>
+              <button class="btn btn-secondary" onclick="navigateTo('decrypt')" style="justify-content:flex-start">🔓 解密一条消息</button>
+              <button class="btn btn-secondary" onclick="navigateTo('sign')" style="justify-content:flex-start">✍️ 对消息签名</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="card-icon">⌨️</span> 快捷键提示</div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary)">
+              <div style="display:flex;justify-content:space-between"><span>打开命令面板</span><kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Ctrl+K</kbd></div>
+              <div style="display:flex;justify-content:space-between"><span>切换页面</span><kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Alt + 数字</kbd></div>
+              <div style="display:flex;justify-content:space-between"><span>快速加密</span><kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Alt+E</kbd></div>
+              <div style="display:flex;justify-content:space-between"><span>快速解密</span><kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Alt+D</kbd></div>
+              <div style="display:flex;justify-content:space-between"><span>切换密码可见</span><kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Alt+P</kbd></div>
+              <div style="display:flex;justify-content:space-between"><span>查看快捷键</span><kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Alt+K</kbd></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keys -->
+      <div class="page" id="page-keys">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">➕</span> 生成新密钥对</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">密钥名称</label>
+              <input class="form-input" id="keyGenName" placeholder="例如: my-key" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">加密密码</label>
+              <div class="input-wrapper">
+                <input class="form-input" id="keyGenPwd" type="password" placeholder="输入加密密码" style="padding-right:32px">
+                <span class="password-toggle" onclick="togglePwd('keyGenPwd')">👁</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">确认密码</label>
+              <div class="input-wrapper">
+                <input class="form-input" id="keyGenPwd2" type="password" placeholder="再次输入密码" style="padding-right:32px">
+                <span class="password-toggle" onclick="togglePwd('keyGenPwd2')">👁</span>
+              </div>
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <button class="btn btn-primary" onclick="generateKey()">🔑 生成密钥对</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-icon">📋</span> 已有密钥对</div>
+          <div id="keysTableContainer">
+            <div class="empty-state"><div class="empty-icon">🔑</div><div class="empty-text">暂无密钥对</div><div class="empty-hint">点击上方生成新密钥对</div></div>
+          </div>
+        </div>
+
+        <div class="section-grid">
+          <div class="card">
+            <div class="card-title"><span class="card-icon">📤</span> 导出公钥</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">密钥名称</label>
+                <input class="form-input autocomplete-keys" id="exportPubName" placeholder="输入或选择密钥名" autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label class="form-label">输出路径</label>
+                <input class="form-input" id="exportPubPath" placeholder="例如: ./pubkey.pem">
+              </div>
+            </div>
+            <div class="btn-group"><button class="btn btn-primary" onclick="exportPub()">导出公钥</button></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="card-icon">📤</span> 导出私钥</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">密钥名称</label>
+                <input class="form-input autocomplete-keys" id="exportPrivName" placeholder="输入或选择密钥名" autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label class="form-label">输出路径</label>
+                <input class="form-input" id="exportPrivPath" placeholder="例如: ./privkey.pem">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">密码</label>
+                <div class="input-wrapper">
+                  <input class="form-input" id="exportPrivPwd" type="password" placeholder="输入私钥密码" style="padding-right:32px">
+                  <span class="password-toggle" onclick="togglePwd('exportPrivPwd')">👁</span>
+                </div>
+              </div>
+            </div>
+            <div class="btn-group"><button class="btn btn-primary" onclick="exportPriv()">导出私钥</button></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-icon">📥</span> 导入密钥对</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">密钥名称</label>
+              <input class="form-input" id="importKeyName" placeholder="新密钥对名称">
+            </div>
+            <div class="form-group">
+              <label class="form-label">加密密码</label>
+              <div class="input-wrapper">
+                <input class="form-input" id="importKeyPwd" type="password" placeholder="用于加密存储私钥" style="padding-right:32px">
+                <span class="password-toggle" onclick="togglePwd('importKeyPwd')">👁</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">公钥文件路径</label>
+              <input class="form-input" id="importPubPath" placeholder="例如: ./alice_pub.pem">
+            </div>
+            <div class="form-group">
+              <label class="form-label">私钥文件路径</label>
+              <input class="form-input" id="importPrivPath" placeholder="例如: ./alice_priv.pem">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-primary" onclick="importKey()">📥 导入密钥对</button></div>
+        </div>
+      </div>
+
+      <!-- Contacts -->
+      <div class="page" id="page-contacts">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">➕</span> 添加联系人</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">昵称</label>
+              <input class="form-input" id="contactNickname" placeholder="例如: alice">
+            </div>
+            <div class="form-group">
+              <label class="form-label">公钥文件路径</label>
+              <input class="form-input" id="contactPubKey" placeholder="例如: ./alice_pub.pem">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-primary" onclick="addContact()">👤 添加联系人</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-icon">📋</span> 联系人列表</div>
+          <div id="contactsTableContainer">
+            <div class="empty-state"><div class="empty-icon">👤</div><div class="empty-text">暂无联系人</div><div class="empty-hint">添加联系人后可直接用昵称加密消息</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-icon">✏️</span> 更新联系人</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">当前昵称</label>
+              <input class="form-input autocomplete-contacts" id="updateContactName" placeholder="输入或选择联系人" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">新昵称</label>
+              <input class="form-input" id="updateContactNewName" placeholder="留空则不修改">
+            </div>
+            <div class="form-group full">
+              <label class="form-label">新公钥路径</label>
+              <input class="form-input" id="updateContactNewPub" placeholder="留空则不修改">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-primary" onclick="updateContact()">✏️ 更新</button></div>
+        </div>
+      </div>
+
+      <!-- Encrypt -->
+      <div class="page" id="page-encrypt">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🔒</span> 加密消息</div>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label">消息内容</label>
+              <textarea class="form-textarea" id="encMessage" placeholder="输入要加密的消息内容..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">接收方（昵称或公钥路径）</label>
+              <input class="form-input autocomplete-contacts" id="encRecipient" placeholder="输入联系人昵称或公钥文件路径" autocomplete="off">
+              <span class="form-hint">可输入联系人昵称，或直接填写公钥文件路径</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">发送方密钥（可选，用于签名）</label>
+              <input class="form-input autocomplete-keys" id="encSender" placeholder="留空则不签名" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">发送方密码</label>
+              <div class="input-wrapper">
+                <input class="form-input" id="encSenderPwd" type="password" placeholder="签名时需要输入密码" style="padding-right:32px">
+                <span class="password-toggle" onclick="togglePwd('encSenderPwd')">👁</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">输出文件路径（可选）</label>
+              <input class="form-input" id="encOutput" placeholder="留空则自动生成">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-primary" onclick="encryptMsg()">🔒 加密</button></div>
+          <div id="encryptResult"></div>
+        </div>
+      </div>
+
+      <!-- Decrypt -->
+      <div class="page" id="page-decrypt">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🔓</span> 解密消息</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">加密文件路径</label>
+              <input class="form-input" id="decInput" placeholder="例如: ./encrypted_12345.enc">
+            </div>
+            <div class="form-group">
+              <label class="form-label">解密密钥名称</label>
+              <input class="form-input autocomplete-keys" id="decKey" placeholder="输入或选择密钥名" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">私钥密码</label>
+              <div class="input-wrapper">
+                <input class="form-input" id="decPwd" type="password" placeholder="输入私钥密码" style="padding-right:32px">
+                <span class="password-toggle" onclick="togglePwd('decPwd')">👁</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">发送方密钥（可选，验证签名）</label>
+              <input class="form-input autocomplete-keys" id="decSender" placeholder="留空则自动匹配" autocomplete="off">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-primary" onclick="decryptMsg()">🔓 解密</button></div>
+          <div id="decryptResult"></div>
+        </div>
+      </div>
+
+      <!-- Sign -->
+      <div class="page" id="page-sign">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">✍️</span> 签名消息</div>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label">消息内容</label>
+              <textarea class="form-textarea" id="signMessage" placeholder="输入要签名的消息内容..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">签名密钥</label>
+              <input class="form-input autocomplete-keys" id="signKey" placeholder="输入或选择密钥名" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">私钥密码</label>
+              <div class="input-wrapper">
+                <input class="form-input" id="signPwd" type="password" placeholder="输入私钥密码" style="padding-right:32px">
+                <span class="password-toggle" onclick="togglePwd('signPwd')">👁</span>
+              </div>
+            </div>
+            <div class="form-group full">
+              <label class="form-label">输出文件路径（可选）</label>
+              <input class="form-input" id="signOutput" placeholder="留空则仅显示签名">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-primary" onclick="signMsg()">✍️ 签名</button></div>
+          <div id="signResult"></div>
+        </div>
+      </div>
+
+      <!-- Verify -->
+      <div class="page" id="page-verify">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">✅</span> 验证签名</div>
+          <div class="tab-bar">
+            <div class="tab-item active" onclick="switchVerifyTab('manual')">手动输入</div>
+            <div class="tab-item" onclick="switchVerifyTab('file')">签名文件</div>
+          </div>
+
+          <div id="verifyManual">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label">原始消息</label>
+                <textarea class="form-textarea" id="verifyMessage" placeholder="输入原始消息文本..."></textarea>
+              </div>
+              <div class="form-group full">
+                <label class="form-label">签名（Base64）</label>
+                <textarea class="form-textarea" id="verifySignature" placeholder="输入 Base64 编码的签名..." style="min-height:60px"></textarea>
+              </div>
+              <div class="form-group full">
+                <label class="form-label">签名方公钥路径</label>
+                <input class="form-input" id="verifyPubKey" placeholder="例如: ./alice_pub.pem">
+              </div>
+            </div>
+            <div class="btn-group"><button class="btn btn-primary" onclick="verifySig()">✅ 验证</button></div>
+          </div>
+
+          <div id="verifyFile" style="display:none">
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">签名文件路径</label>
+                <input class="form-input" id="verifyFilePath" placeholder="例如: ./signed_message.json">
+              </div>
+              <div class="form-group">
+                <label class="form-label">签名方公钥路径</label>
+                <input class="form-input" id="verifyFilePubKey" placeholder="例如: ./alice_pub.pem">
+              </div>
+            </div>
+            <div class="btn-group"><button class="btn btn-primary" onclick="verifyFileSig()">✅ 验证</button></div>
+          </div>
+          <div id="verifyResult"></div>
+        </div>
+      </div>
+
+      <!-- Shred -->
+      <div class="page" id="page-shred">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🗑️</span> 安全删除文件</div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
+            对文件执行 3 次随机数据覆写后删除，确保文件内容无法恢复。<span style="color:var(--danger);font-weight:600">此操作不可逆！</span>
+          </p>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label">文件路径</label>
+              <input class="form-input" id="shredFilePath" placeholder="输入要安全删除的文件路径">
+            </div>
+          </div>
+          <div class="btn-group"><button class="btn btn-danger" onclick="shredFileAction()">🗑️ 安全删除</button></div>
+          <div id="shredResult"></div>
+        </div>
+      </div>
+
+      <!-- Shortcuts -->
+      <div class="page" id="page-shortcuts">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">⌨️</span> 全局快捷键</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">使用快捷键可跳开鼠标操作，效率更高。在任意页面均可使用。</div>
+          <div class="shortcut-grid">
+            <div class="shortcut-item"><span>🔍 打开命令面板</span><kbd>Ctrl+K</kbd></div>
+            <div class="shortcut-item"><span>📊 切换到仪表盘</span><kbd>Alt+1</kbd></div>
+            <div class="shortcut-item"><span>🔑 切换到密钥管理</span><kbd>Alt+2</kbd></div>
+            <div class="shortcut-item"><span>👤 切换到联系人</span><kbd>Alt+3</kbd></div>
+            <div class="shortcut-item"><span>🔒 切换到加密消息</span><kbd>Alt+4</kbd></div>
+            <div class="shortcut-item"><span>🔓 切换到解密消息</span><kbd>Alt+5</kbd></div>
+            <div class="shortcut-item"><span>✍️ 切换到签名</span><kbd>Alt+6</kbd></div>
+            <div class="shortcut-item"><span>✅ 切换到验证</span><kbd>Alt+7</kbd></div>
+            <div class="shortcut-item"><span>🗑️ 切换到安全删除</span><kbd>Alt+8</kbd></div>
+            <div class="shortcut-item"><span>🎯 打开命令面板</span><kbd>Ctrl+K</kbd></div>
+            <div class="shortcut-item"><span>🔑 快速加密</span><kbd>Alt+E</kbd></div>
+            <div class="shortcut-item"><span>🔓 快速解密</span><kbd>Alt+D</kbd></div>
+            <div class="shortcut-item"><span>👁 切换密码可见</span><kbd>Alt+P</kbd></div>
+            <div class="shortcut-item"><span>📘 查看快捷键</span><kbd>Alt+K</kbd></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-icon">💡</span> 交互小贴士</div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text-secondary);line-height:1.7">
+            <div>• 在输入框输入关键字时，会自动弹出<span style="color:var(--accent)">补全建议</span>，可用 ↑/↓ 选择，Enter 确认。</div>
+            <div>• 所有表单提交失败时，会在输入框下方显示<span style="color:var(--danger)">具体错误原因</span>，请根据提示修正。</div>
+            <div>• 右下角<span style="color:var(--accent)">悬浮按钮</span>可随时唤起命令面板，输入命令名（如 "加密"、"导出公钥"）即可快速跳转。</div>
+            <div>• 侧边栏搜索框可快速过滤菜单项，输入子串即可看到匹配的模块。</div>
+            <div>• 操作成功后会出现<span style="color:var(--accent)">绿色 Toast</span>提示，失败会出现红色提示，可据此判断操作结果。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help / Usage -->
+      <div class="page" id="page-help">
+        <div class="card">
+          <div class="card-title"><span class="card-icon">📘</span> CryptoVault 使用说明</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.8">
+            <p><strong style="color:var(--text-primary)">CryptoVault</strong> 是一款基于 Node.js 的轻量化加密通信工具，提供密钥管理、加密/解密、数字签名和安全删除等功能。本页介绍常用操作流程。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🚀</span> 快速上手指引</div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="padding:12px;border-left:3px solid var(--accent);background:var(--bg-secondary);border-radius:6px">
+              <div style="font-weight:600;color:var(--accent);margin-bottom:4px">① 生成密钥对</div>
+              <div style="font-size:13px;color:var(--text-secondary)">进入"密钥管理"页，填写密钥名称和密码，点击"生成密钥对"。密钥指纹是您的身份唯一标识。</div>
+            </div>
+            <div style="padding:12px;border-left:3px solid var(--info);background:var(--bg-secondary);border-radius:6px">
+              <div style="font-weight:600;color:var(--info);margin-bottom:4px">② 添加联系人</div>
+              <div style="font-size:13px;color:var(--text-secondary)">进入"联系人"页，添加联系人昵称和对应的公钥文件路径。之后加密时可直接用昵称选择接收方。</div>
+            </div>
+            <div style="padding:12px;border-left:3px solid var(--warning);background:var(--bg-secondary);border-radius:6px">
+              <div style="font-weight:600;color:var(--warning);margin-bottom:4px">③ 加密一条消息</div>
+              <div style="font-size:13px;color:var(--text-secondary)">进入"加密消息"页，输入消息内容和接收方（昵称或公钥路径）。可选填发送方密钥用于签名。</div>
+            </div>
+            <div style="padding:12px;border-left:3px solid var(--accent);background:var(--bg-secondary);border-radius:6px">
+              <div style="font-weight:600;color:var(--accent);margin-bottom:4px">④ 解密一条消息</div>
+              <div style="font-size:13px;color:var(--text-secondary)">进入"解密消息"页，输入加密文件路径、密钥名称和密码，即可恢复明文。若附有签名会一并校验。</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🎯</span> 命令面板 (Ctrl+K) 使用</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.8">
+            <p>在任意页面按 <kbd style="font-family:var(--font-mono);font-size:11px;background:var(--bg-deep);padding:2px 6px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Ctrl+K</kbd> 打开命令面板：</p>
+            <div style="margin:10px 0 14px;padding:10px;background:var(--bg-input);border-radius:6px;font-family:var(--font-mono);font-size:12px;line-height:1.7">
+              ⌨ 输入关键字：encrypt / 加密 / 密钥 / sign<br>
+              ⌨ ↑/↓ 选择，Enter 执行<br>
+              ⌨ Esc 关闭
+            </div>
+            <p>支持跳转页面、导出密钥、初始化数据库等常用操作。比传统 CLI 命令行更快、更直观。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🛡️</span> 安全提示</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.8">
+            <p>• 私钥密码请妥善保管，丢失后无法找回。</p>
+            <p>• 安全删除功能会覆写文件 3 次，操作不可逆。</p>
+            <p>• 加密通信前，请确保已获取接收方的公钥文件。</p>
+            <p>• 建议定期导出密钥对备份，并离线保存。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="card-icon">📞</span> 遇到问题？</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.8">
+            <p>• 检查页面底部状态栏是否显示"已连接"。</p>
+            <p>• 查看右侧 Toast 提示的错误信息，通常会直接告诉你原因。</p>
+            <p>• 刷新页面，或点击右上角"初始化数据库"重置本地数据。</p>
+            <p>• 查看"快捷键"页获取全部键盘操作列表。</p>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="openPalette()">🎯 试试命令面板 (Ctrl+K)</button>
+          <button class="btn btn-secondary" onclick="navigateTo('shortcuts')">查看快捷键</button>
+          <button class="btn btn-secondary" onclick="navigateTo('dashboard')">返回仪表盘</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<button class="fab" id="fabBtn" title="命令面板 (Ctrl+K)">
+  <span class="fab-label">命令面板 Ctrl+K</span>
+  ⌘K
+</button>
+
+<div class="palette-overlay" id="paletteOverlay">
+  <div class="palette" role="dialog" aria-label="命令面板" aria-modal="true">
+    <div class="palette-input-wrap">
+      <span class="palette-icon">🔍</span>
+      <input type="text" class="palette-input" id="paletteInput" placeholder="输入命令、页面或关键字，例如：加密、导出、sign..." autocomplete="off" autofocus>
+    </div>
+    <div class="palette-list" id="paletteList"></div>
+    <div class="palette-footer">
+      <div class="keys">
+        <span>导航: <kbd>↑</kbd><kbd>↓</kbd></span>
+        <span>执行: <kbd>Enter</kbd></span>
+        <span>关闭: <kbd>Esc</kbd></span>
+      </div>
+      <div style="opacity:0.6">CryptoVault · 命令面板</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PAGES = ['dashboard','keys','contacts','encrypt','decrypt','sign','verify','shred','shortcuts','help'];
+const PAGE_ICONS = {'dashboard':'📊','keys':'🔑','contacts':'👤','encrypt':'🔒','decrypt':'🔓','sign':'✍️','verify':'✅','shred':'🗑️','shortcuts':'⌨️','help':'📘'};
+const PAGE_NAMES = {'dashboard':'仪表盘','keys':'密钥管理','contacts':'联系人','encrypt':'加密消息','decrypt':'解密消息','sign':'签名','verify':'验证签名','shred':'安全删除','shortcuts':'快捷键','help':'使用说明'};
+let cachedKeys = [];
+let cachedContacts = [];
+
+function navigateTo(page) {
+  PAGES.forEach(p => {
+    const el = document.getElementById('page-' + p);
+    const nav = document.querySelector(`.nav-item[data-page="${p}"]`);
+    if (el) el.classList.toggle('active', p === page);
+    if (nav) nav.classList.toggle('active', p === page);
+  });
+  document.getElementById('pageTitle').textContent = PAGE_ICONS[page] || '';
+  document.getElementById('pageName').textContent = PAGE_NAMES[page] || page;
+  if (page === 'keys') loadKeys();
+  if (page === 'contacts') loadContacts();
+  if (page === 'dashboard') loadStatus();
+}
+
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  const icons = { success: '✓', error: '✗', warning: '⚠', info: 'ℹ' };
+  el.innerHTML = `<span>${icons[type] || ''}</span><span>${msg}</span>`;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; el.style.transition = '0.3s'; setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch('/api' + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Unknown error');
+  return data;
+}
+
+function togglePwd(id) {
+  const input = document.getElementById(id);
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function confirmDialog(title, message) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog">
+        <h3>${title}</h3>
+        <p>${message}</p>
+        <div class="btn-group" style="justify-content:flex-end">
+          <button class="btn btn-secondary" id="confirmCancel">取消</button>
+          <button class="btn btn-danger" id="confirmOk">确认</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#confirmCancel').onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector('#confirmOk').onclick = () => { overlay.remove(); resolve(true); };
+    overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } };
+  });
+}
+
+async function loadStatus() {
+  try {
+    const data = await api('GET', '/status');
+    document.getElementById('keyCount').textContent = data.keyCount;
+    document.getElementById('contactCount').textContent = data.contactCount;
+    document.getElementById('dbStatus').textContent = data.dbReady ? '✓' : '✗';
+    document.getElementById('statusDot').className = 'status-dot online';
+    document.getElementById('statusText').textContent = '已连接';
+    cachedKeys = data.keyCount >= 0 ? await api('GET', '/keys') : [];
+    cachedContacts = data.contactCount >= 0 ? await api('GET', '/contacts') : [];
+  } catch {
+    document.getElementById('statusDot').className = 'status-dot';
+    document.getElementById('statusText').textContent = '未连接';
+  }
+}
+
+async function initDatabase() {
+  try {
+    const data = await api('POST', '/init');
+    toast('数据库初始化成功', 'success');
+    loadStatus();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function loadKeys() {
+  try {
+    cachedKeys = await api('GET', '/keys');
+    const container = document.getElementById('keysTableContainer');
+    if (cachedKeys.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔑</div><div class="empty-text">暂无密钥对</div><div class="empty-hint">点击上方生成新密钥对</div></div>';
+      return;
+    }
+    container.innerHTML = `<div class="table-container"><table class="data-table">
+      <thead><tr><th>ID</th><th>名称</th><th>指纹</th><th>创建时间</th><th>操作</th></tr></thead>
+      <tbody>${cachedKeys.map(k => `<tr>
+        <td>${k.id}</td><td>${k.name}</td><td class="mono">${k.fingerprint.substring(0, 16)}...</td><td>${k.created_at}</td>
+        <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteKey('${k.name}')">删除</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function generateKey() {
+  const name = document.getElementById('keyGenName').value.trim();
+  const pwd = document.getElementById('keyGenPwd').value;
+  const pwd2 = document.getElementById('keyGenPwd2').value;
+  if (!name) return toast('请输入密钥名称', 'warning');
+  if (!pwd) return toast('请输入密码', 'warning');
+  if (pwd !== pwd2) return toast('两次密码不一致', 'error');
+  try {
+    const result = await api('POST', '/keys/generate', { name, password: pwd, confirmPassword: pwd2 });
+    toast(`密钥对 "${result.name}" 已生成，指纹: ${result.fingerprint.substring(0, 16)}...`, 'success');
+    document.getElementById('keyGenName').value = '';
+    document.getElementById('keyGenPwd').value = '';
+    document.getElementById('keyGenPwd2').value = '';
+    loadKeys();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteKey(name) {
+  const ok = await confirmDialog('确认删除', `确定要删除密钥对 "${name}" 吗？此操作不可恢复。`);
+  if (!ok) return;
+  try {
+    await api('DELETE', '/keys/' + encodeURIComponent(name));
+    toast(`密钥对 "${name}" 已删除`, 'success');
+    loadKeys();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function exportPub() {
+  const name = document.getElementById('exportPubName').value.trim();
+  const outputPath = document.getElementById('exportPubPath').value.trim();
+  if (!name) return toast('请输入密钥名称', 'warning');
+  if (!outputPath) return toast('请输入输出路径', 'warning');
+  try {
+    const result = await api('POST', '/keys/export-pub', { name, outputPath });
+    toast(`公钥已导出至: ${result.outputPath}`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function exportPriv() {
+  const name = document.getElementById('exportPrivName').value.trim();
+  const outputPath = document.getElementById('exportPrivPath').value.trim();
+  const password = document.getElementById('exportPrivPwd').value;
+  if (!name) return toast('请输入密钥名称', 'warning');
+  if (!outputPath) return toast('请输入输出路径', 'warning');
+  if (!password) return toast('请输入密码', 'warning');
+  try {
+    const result = await api('POST', '/keys/export-priv', { name, outputPath, password });
+    toast(`私钥已导出至: ${result.outputPath}`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function importKey() {
+  const name = document.getElementById('importKeyName').value.trim();
+  const password = document.getElementById('importKeyPwd').value;
+  const publicKeyPath = document.getElementById('importPubPath').value.trim();
+  const privateKeyPath = document.getElementById('importPrivPath').value.trim();
+  if (!name) return toast('请输入密钥名称', 'warning');
+  if (!password) return toast('请输入密码', 'warning');
+  if (!publicKeyPath) return toast('请输入公钥路径', 'warning');
+  if (!privateKeyPath) return toast('请输入私钥路径', 'warning');
+  try {
+    const result = await api('POST', '/keys/import', { name, publicKeyPath, privateKeyPath, password });
+    toast(`密钥对 "${result.name}" 导入成功`, 'success');
+    loadKeys();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function loadContacts() {
+  try {
+    cachedContacts = await api('GET', '/contacts');
+    const container = document.getElementById('contactsTableContainer');
+    if (cachedContacts.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><div class="empty-text">暂无联系人</div><div class="empty-hint">添加联系人后可直接用昵称加密消息</div></div>';
+      return;
+    }
+    container.innerHTML = `<div class="table-container"><table class="data-table">
+      <thead><tr><th>ID</th><th>昵称</th><th>公钥路径</th><th>创建时间</th><th>操作</th></tr></thead>
+      <tbody>${cachedContacts.map(c => `<tr>
+        <td>${c.id}</td><td>${c.nickname}</td><td class="mono" title="${c.public_key_path}">${c.public_key_path.length > 30 ? '...' + c.public_key_path.slice(-30) : c.public_key_path}</td><td>${c.created_at}</td>
+        <td class="actions"><button class="btn btn-danger btn-sm" onclick="deleteContact('${c.nickname}')">删除</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function addContact() {
+  const nickname = document.getElementById('contactNickname').value.trim();
+  const publicKeyPath = document.getElementById('contactPubKey').value.trim();
+  if (!nickname) return toast('请输入昵称', 'warning');
+  if (!publicKeyPath) return toast('请输入公钥路径', 'warning');
+  try {
+    await api('POST', '/contacts', { nickname, publicKeyPath });
+    toast(`联系人 "${nickname}" 已添加`, 'success');
+    document.getElementById('contactNickname').value = '';
+    document.getElementById('contactPubKey').value = '';
+    loadContacts();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function updateContact() {
+  const nickname = document.getElementById('updateContactName').value.trim();
+  const newNickname = document.getElementById('updateContactNewName').value.trim() || undefined;
+  const newPublicKeyPath = document.getElementById('updateContactNewPub').value.trim() || undefined;
+  if (!nickname) return toast('请输入当前昵称', 'warning');
+  if (!newNickname && !newPublicKeyPath) return toast('至少填写一项更新内容', 'warning');
+  try {
+    await api('PUT', '/contacts/' + encodeURIComponent(nickname), { newNickname, newPublicKeyPath });
+    toast('联系人已更新', 'success');
+    loadContacts();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteContact(nickname) {
+  const ok = await confirmDialog('确认删除', `确定要删除联系人 "${nickname}" 吗？`);
+  if (!ok) return;
+  try {
+    await api('DELETE', '/contacts/' + encodeURIComponent(nickname));
+    toast(`联系人 "${nickname}" 已删除`, 'success');
+    loadContacts();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function encryptMsg() {
+  const message = document.getElementById('encMessage').value;
+  const recipient = document.getElementById('encRecipient').value.trim();
+  const senderKeyName = document.getElementById('encSender').value.trim();
+  const senderPassword = document.getElementById('encSenderPwd').value;
+  const outputPath = document.getElementById('encOutput').value.trim();
+  if (!message) return toast('请输入消息内容', 'warning');
+  if (!recipient) return toast('请输入接收方', 'warning');
+  try {
+    const result = await api('POST', '/encrypt', { message, recipient, senderKeyName: senderKeyName || undefined, senderPassword: senderPassword || undefined, outputPath: outputPath || undefined });
+    document.getElementById('encryptResult').innerHTML = `
+      <div class="result-box success">
+<strong>✓ 加密成功</strong>
+输出文件: ${result.outputPath}
+${result.senderFingerprint ? '签名指纹: ' + result.senderFingerprint : ''}</div>`;
+    toast('消息加密成功', 'success');
+  } catch (err) {
+    document.getElementById('encryptResult').innerHTML = `<div class="result-box error">✗ ${err.message}</div>`;
+    toast(err.message, 'error');
+  }
+}
+
+async function decryptMsg() {
+  const inputPath = document.getElementById('decInput').value.trim();
+  const keyName = document.getElementById('decKey').value.trim();
+  const password = document.getElementById('decPwd').value;
+  const senderKeyName = document.getElementById('decSender').value.trim();
+  if (!inputPath) return toast('请输入加密文件路径', 'warning');
+  if (!keyName) return toast('请输入密钥名称', 'warning');
+  if (!password) return toast('请输入密码', 'warning');
+  try {
+    const result = await api('POST', '/decrypt', { inputPath, keyName, password, senderKeyName: senderKeyName || undefined });
+    let sigHtml = '';
+    if (result.signatureStatus === 'valid') sigHtml = '<div class="signature-status valid">✓ 签名有效 | 发送方指纹: ' + (result.senderFingerprint || '未知') + '</div>';
+    else if (result.signatureStatus === 'invalid') sigHtml = '<div class="signature-status invalid">✗ 签名无效</div>';
+    else if (result.signatureStatus === 'not provided') sigHtml = '<div class="signature-status unknown">⚠ 未提供签名</div>';
+    else if (result.signatureStatus !== 'provided') sigHtml = '<div class="signature-status unknown">⚠ ' + result.signatureStatus + '</div>';
+    document.getElementById('decryptResult').innerHTML = `
+      <div class="result-box success"><strong>✓ 解密成功</strong>
+${result.message}</div>${sigHtml}`;
+    toast('消息解密成功', 'success');
+  } catch (err) {
+    document.getElementById('decryptResult').innerHTML = `<div class="result-box error">✗ ${err.message}</div>`;
+    toast(err.message, 'error');
+  }
+}
+
+async function signMsg() {
+  const message = document.getElementById('signMessage').value;
+  const keyName = document.getElementById('signKey').value.trim();
+  const password = document.getElementById('signPwd').value;
+  const outputPath = document.getElementById('signOutput').value.trim();
+  if (!message) return toast('请输入消息内容', 'warning');
+  if (!keyName) return toast('请输入密钥名称', 'warning');
+  if (!password) return toast('请输入密码', 'warning');
+  try {
+    const result = await api('POST', '/sign', { message, keyName, password, outputPath: outputPath || undefined });
+    document.getElementById('signResult').innerHTML = `
+      <div class="result-box success"><strong>✓ 签名成功</strong>
+算法: ${result.algorithm}
+签名方指纹: ${result.signer_fingerprint}
+签名: ${result.signature}
+${outputPath ? '输出文件: ' + outputPath : ''}</div>`;
+    toast('消息签名成功', 'success');
+  } catch (err) {
+    document.getElementById('signResult').innerHTML = `<div class="result-box error">✗ ${err.message}</div>`;
+    toast(err.message, 'error');
+  }
+}
+
+function switchVerifyTab(tab) {
+  document.getElementById('verifyManual').style.display = tab === 'manual' ? 'block' : 'none';
+  document.getElementById('verifyFile').style.display = tab === 'file' ? 'block' : 'none';
+  document.querySelectorAll('#page-verify .tab-item').forEach((el, i) => el.classList.toggle('active', (i === 0 && tab === 'manual') || (i === 1 && tab === 'file')));
+}
+
+async function verifySig() {
+  const message = document.getElementById('verifyMessage').value;
+  const signature = document.getElementById('verifySignature').value.trim();
+  const publicKeyPath = document.getElementById('verifyPubKey').value.trim();
+  if (!message) return toast('请输入消息', 'warning');
+  if (!signature) return toast('请输入签名', 'warning');
+  if (!publicKeyPath) return toast('请输入公钥路径', 'warning');
+  try {
+    const result = await api('POST', '/verify', { message, signature, publicKeyPath });
+    const valid = result.valid;
+    document.getElementById('verifyResult').innerHTML = `<div class="signature-status ${valid ? 'valid' : 'invalid'}">${valid ? '✓ 签名有效' : '✗ 签名无效'}</div>`;
+    toast(valid ? '签名验证通过' : '签名验证失败', valid ? 'success' : 'error');
+  } catch (err) {
+    document.getElementById('verifyResult').innerHTML = `<div class="result-box error">✗ ${err.message}</div>`;
+    toast(err.message, 'error');
+  }
+}
+
+async function verifyFileSig() {
+  const signedFilePath = document.getElementById('verifyFilePath').value.trim();
+  const publicKeyPath = document.getElementById('verifyFilePubKey').value.trim();
+  if (!signedFilePath) return toast('请输入签名文件路径', 'warning');
+  if (!publicKeyPath) return toast('请输入公钥路径', 'warning');
+  try {
+    const result = await api('POST', '/verify', { signedFilePath, publicKeyPath });
+    const valid = result.valid;
+    document.getElementById('verifyResult').innerHTML = `
+      <div class="signature-status ${valid ? 'valid' : 'invalid'}">${valid ? '✓ 签名有效' : '✗ 签名无效'}</div>
+      <div class="result-box">消息: ${result.message}${result.signerFingerprint ? '\n签名方指纹: ' + result.signerFingerprint : ''}${result.timestamp ? '\n签名时间: ' + result.timestamp : ''}</div>`;
+    toast(valid ? '签名验证通过' : '签名验证失败', valid ? 'success' : 'error');
+  } catch (err) {
+    document.getElementById('verifyResult').innerHTML = `<div class="result-box error">✗ ${err.message}</div>`;
+    toast(err.message, 'error');
+  }
+}
+
+async function shredFileAction() {
+  const filePath = document.getElementById('shredFilePath').value.trim();
+  if (!filePath) return toast('请输入文件路径', 'warning');
+  const ok = await confirmDialog('⚠️ 危险操作', `确定要安全删除 "${filePath}" 吗？此操作不可恢复！`);
+  if (!ok) return;
+  try {
+    const result = await api('POST', '/shred', { filePath });
+    document.getElementById('shredResult').innerHTML = `
+      <div class="result-box success"><strong>✓ 文件已安全删除</strong>
+路径: ${result.filePath}
+覆写次数: ${result.passes}
+原始大小: ${result.size} bytes</div>`;
+    toast('文件已安全删除', 'success');
+    document.getElementById('shredFilePath').value = '';
+  } catch (err) {
+    document.getElementById('shredResult').innerHTML = `<div class="result-box error">✗ ${err.message}</div>`;
+    toast(err.message, 'error');
+  }
+}
+
+function fuzzyMatch(text, query) {
+  if (!query) return true;
+  const t = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  if (t.includes(q)) return true;
+  // Multi-word: split by space/punctuation and match any token
+  const tokens = q.split(/[\s,，、。!！?？；;：:·]+/).filter(Boolean);
+  if (tokens.length > 1 && tokens.some(tok => t.includes(tok))) return true;
+  // Chinese fuzzy: if >=50% of unique chars appear in text, consider match
+  if (/[\u4e00-\u9fa5]/.test(q)) {
+    const chars = Array.from(new Set(Array.from(q)));
+    const hits = chars.filter(c => t.includes(c)).length;
+    if (hits / chars.length >= 0.5) return true;
+    return false;
+  }
+  // ASCII fuzzy: character-by-character order check
+  let ti = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    const next = t.indexOf(q[qi], ti);
+    if (next === -1) return false;
+    ti = next + 1;
+  }
+  return true;
+}
+
+function highlightMatch(text, query) {
+  if (!query) return text;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return text;
+  return text.substring(0, idx) + '<mark>' + text.substring(idx, idx + query.length) + '</mark>' + text.substring(idx + query.length);
+}
+
+function validateField(input, opts = {}) {
+  const wrap = input.closest('.form-group') || input.parentNode;
+  let err = wrap.querySelector('.form-error-text');
+  if (!err) {
+    err = document.createElement('div');
+    err.className = 'form-error-text';
+    wrap.appendChild(err);
+  }
+  input.classList.remove('input-error', 'input-ok');
+  const v = input.value.trim();
+  if (opts.required && !v) {
+    err.textContent = '⚠ 此项为必填项，请填写后再提交';
+    err.classList.add('show');
+    input.classList.add('input-error');
+    input.setAttribute('aria-invalid', 'true');
+    return false;
+  }
+  if (opts.pattern && v && !opts.pattern.test(v)) {
+    err.textContent = opts.message || '⚠ 格式不符合要求';
+    err.classList.add('show');
+    input.classList.add('input-error');
+    input.setAttribute('aria-invalid', 'true');
+    return false;
+  }
+  err.classList.remove('show');
+  input.setAttribute('aria-invalid', 'false');
+  return true;
+}
+
+function setupAutocomplete(inputSelector, dataSource, metaSource) {
+  document.querySelectorAll(inputSelector).forEach(input => {
+    const list = document.createElement('div');
+    list.className = 'autocomplete-list';
+    input.parentNode.style.position = 'relative';
+    input.parentNode.appendChild(list);
+    let idx = -1;
+
+    input.addEventListener('input', () => {
+      const val = input.value;
+      const items = dataSource().filter(item => fuzzyMatch(item, val));
+      idx = -1;
+      if (items.length === 0 || val === '') { list.classList.remove('show'); list.innerHTML = ''; return; }
+      list.innerHTML = items.slice(0, 10).map(item => {
+        const meta = metaSource ? metaSource(item) : '';
+        return `<div class="autocomplete-item" data-value="${item}">
+          <span>${highlightMatch(item, val)}</span>
+          ${meta ? `<span class="ac-meta">${meta}</span>` : ''}
+        </div>`;
+      }).join('');
+      list.classList.add('show');
+      list.querySelectorAll('.autocomplete-item').forEach((el) => {
+        el.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          input.value = el.getAttribute('data-value');
+          list.classList.remove('show');
+          if (input.onchange) input.onchange();
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const items = list.querySelectorAll('.autocomplete-item');
+      if (!list.classList.contains('show') || items.length === 0) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(idx + 1, items.length - 1); updateHighlight(items); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx - 1, 0); updateHighlight(items); }
+      else if (e.key === 'Enter' && idx >= 0) {
+        e.preventDefault();
+        input.value = items[idx].getAttribute('data-value');
+        list.classList.remove('show');
+      }
+      else if (e.key === 'Escape') { list.classList.remove('show'); }
+    });
+
+    input.addEventListener('blur', () => { setTimeout(() => list.classList.remove('show'), 150); });
+
+    function updateHighlight(items) {
+      items.forEach((el, i) => el.classList.toggle('highlighted', i === idx));
+      if (idx >= 0 && items[idx]) {
+        items[idx].scrollIntoView({ block: 'nearest' });
+      }
+    }
+  });
+}
+
+/* ========== Command Palette ========== */
+const COMMANDS = [
+  { id: 'nav-dashboard', title: '前往仪表盘', desc: '查看统计数据', icon: '📊', group: '导航', shortcut: 'Alt+1', run: () => navigateTo('dashboard') },
+  { id: 'nav-keys', title: '前往密钥管理', desc: '管理密钥对', icon: '🔑', group: '导航', shortcut: 'Alt+2', run: () => navigateTo('keys') },
+  { id: 'nav-contacts', title: '前往联系人', desc: '管理联系人', icon: '👤', group: '导航', shortcut: 'Alt+3', run: () => navigateTo('contacts') },
+  { id: 'nav-encrypt', title: '前往加密消息', desc: '加密一条消息', icon: '🔒', group: '导航', shortcut: 'Alt+4', run: () => navigateTo('encrypt') },
+  { id: 'nav-decrypt', title: '前往解密消息', desc: '解密一条消息', icon: '🔓', group: '导航', shortcut: 'Alt+5', run: () => navigateTo('decrypt') },
+  { id: 'nav-sign', title: '前往签名', desc: '对消息签名', icon: '✍️', group: '导航', shortcut: 'Alt+6', run: () => navigateTo('sign') },
+  { id: 'nav-verify', title: '前往验证签名', desc: '验证签名', icon: '✅', group: '导航', shortcut: 'Alt+7', run: () => navigateTo('verify') },
+  { id: 'nav-shred', title: '前往安全删除', desc: '安全删除文件', icon: '🗑️', group: '导航', shortcut: 'Alt+8', run: () => navigateTo('shred') },
+  { id: 'nav-shortcuts', title: '查看快捷键', desc: '显示所有快捷键', icon: '⌨️', group: '导航', run: () => navigateTo('shortcuts') },
+  { id: 'nav-help', title: '使用说明', desc: '打开帮助文档', icon: '📘', group: '导航', run: () => navigateTo('help') },
+
+  { id: 'act-init-db', title: '初始化数据库', desc: '重置本地 SQLite 数据库', icon: '🔄', group: '常用操作', run: () => { initDatabase(); closePalette(); } },
+  { id: 'act-toggle-pwd', title: '切换密码可见性', desc: '显示/隐藏所有密码框', icon: '👁', group: '常用操作', shortcut: 'Alt+P', run: () => { document.querySelectorAll('input[type="password"], input.form-input').forEach(inp => { if (inp.type === 'password') inp.type = 'text'; else if (inp.type === 'text' && inp.dataset.isPwd === '1') inp.type = 'password'; }); } },
+  { id: 'act-focus-search', title: '聚焦侧边栏搜索', desc: '过滤菜单项', icon: '🔍', group: '常用操作', run: () => { const el = document.getElementById('sidebarSearch'); if (el) { el.focus(); el.select(); } } },
+
+  { id: 'key-gen', title: '生成新密钥对', desc: '打开密钥生成表单', icon: '➕', group: '密钥管理', run: () => { navigateTo('keys'); setTimeout(() => document.getElementById('keyGenName')?.focus(), 100); } },
+  { id: 'key-export-pub', title: '导出公钥', desc: '导出指定密钥的公钥', icon: '📤', group: '密钥管理', run: () => { navigateTo('keys'); setTimeout(() => document.getElementById('exportPubName')?.focus(), 100); } },
+  { id: 'key-export-priv', title: '导出私钥', desc: '导出指定密钥的私钥', icon: '📤', group: '密钥管理', run: () => { navigateTo('keys'); setTimeout(() => document.getElementById('exportPrivName')?.focus(), 100); } },
+  { id: 'key-import', title: '导入密钥对', desc: '从 PEM 文件导入', icon: '📥', group: '密钥管理', run: () => { navigateTo('keys'); setTimeout(() => document.getElementById('importKeyName')?.focus(), 100); } },
+
+  { id: 'contact-add', title: '添加联系人', desc: '新增联系人记录', icon: '➕', group: '联系人', run: () => { navigateTo('contacts'); setTimeout(() => document.getElementById('contactNickname')?.focus(), 100); } },
+
+  { id: 'enc-now', title: '立即加密消息', desc: '跳到加密页开始', icon: '🔒', group: '消息操作', shortcut: 'Alt+E', run: () => { navigateTo('encrypt'); setTimeout(() => document.getElementById('encMessage')?.focus(), 100); } },
+  { id: 'dec-now', title: '立即解密消息', desc: '跳到解密页开始', icon: '🔓', group: '消息操作', shortcut: 'Alt+D', run: () => { navigateTo('decrypt'); setTimeout(() => document.getElementById('decInput')?.focus(), 100); } },
+  { id: 'sign-now', title: '立即签名', desc: '跳到签名页开始', icon: '✍️', group: '消息操作', run: () => { navigateTo('sign'); setTimeout(() => document.getElementById('signMessage')?.focus(), 100); } },
+  { id: 'verify-now', title: '立即验证', desc: '跳到验证页开始', icon: '✅', group: '消息操作', run: () => { navigateTo('verify'); } },
+  { id: 'shred-now', title: '安全删除文件', desc: '彻底删除指定文件', icon: '🗑️', group: '消息操作', run: () => { navigateTo('shred'); setTimeout(() => document.getElementById('shredFilePath')?.focus(), 100); } },
+];
+
+let paletteIdx = -1;
+let paletteGroups = [];
+
+function openPalette() {
+  const overlay = document.getElementById('paletteOverlay');
+  const input = document.getElementById('paletteInput');
+  overlay.classList.add('show');
+  setTimeout(() => { input.focus(); input.value = ''; renderPalette(''); }, 10);
+}
+
+function closePalette() {
+  const overlay = document.getElementById('paletteOverlay');
+  overlay.classList.remove('show');
+  const input = document.getElementById('paletteInput');
+  input.value = '';
+}
+
+function renderPalette(query) {
+  const list = document.getElementById('paletteList');
+  const filtered = COMMANDS.filter(c => fuzzyMatch(c.title + ' ' + c.desc + ' ' + c.id, query));
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="palette-empty">未找到匹配的命令，试试其它关键字？</div>`;
+    paletteGroups = [];
+    paletteIdx = -1;
+    return;
+  }
+  const grouped = {};
+  filtered.forEach(c => { (grouped[c.group] ||= []).push(c); });
+  paletteGroups = Object.entries(grouped);
+  paletteIdx = -1;
+  let idx = 0;
+  let html = '';
+  paletteGroups.forEach(([group, items]) => {
+    html += `<div class="palette-group-label">${group}</div>`;
+    items.forEach(item => {
+      item._flatIdx = idx++;
+      html += `<div class="palette-item" data-idx="${item._flatIdx}">
+        <div class="pi-icon">${item.icon}</div>
+        <div class="pi-body">
+          <div class="pi-title">${highlightMatch(item.title, query)}</div>
+          <div class="pi-desc">${highlightMatch(item.desc, query)}</div>
+        </div>
+        ${item.shortcut ? `<div class="pi-shortcut"><kbd>${item.shortcut}</kbd></div>` : ''}
+      </div>`;
+    });
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('.palette-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const i = parseInt(el.getAttribute('data-idx'), 10);
+      const cmd = findCommandByFlatIdx(i);
+      if (cmd) { cmd.run(); closePalette(); }
+    });
+  });
+  paletteIdx = 0;
+  updatePaletteHighlight();
+}
+
+function findCommandByFlatIdx(idx) {
+  for (const [, items] of paletteGroups) {
+    for (const item of items) {
+      if (item._flatIdx === idx) return item;
+    }
+  }
+  return null;
+}
+
+function updatePaletteHighlight() {
+  const items = document.querySelectorAll('.palette-item');
+  items.forEach(el => el.classList.toggle('active', parseInt(el.getAttribute('data-idx'), 10) === paletteIdx));
+  const active = document.querySelector('.palette-item.active');
+  if (active) active.scrollIntoView({ block: 'nearest' });
+}
+
+/* ========== Global shortcuts ========== */
+document.addEventListener('keydown', (e) => {
+  const target = e.target;
+  const isTyping = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+  // Palette toggle: Ctrl+K / Cmd+K
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    const overlay = document.getElementById('paletteOverlay');
+    if (overlay.classList.contains('show')) closePalette();
+    else openPalette();
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('paletteOverlay');
+    if (overlay.classList.contains('show')) { e.preventDefault(); closePalette(); return; }
+  }
+
+  // If palette is open, handle nav keys inside it
+  const overlay = document.getElementById('paletteOverlay');
+  if (overlay.classList.contains('show')) {
+    const list = document.getElementById('paletteList');
+    const items = list.querySelectorAll('.palette-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); paletteIdx = Math.min(paletteIdx + 1, items.length - 1); updatePaletteHighlight(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); paletteIdx = Math.max(paletteIdx - 1, 0); updatePaletteHighlight(); }
+    else if (e.key === 'Enter') {
+      if (paletteIdx >= 0) {
+        const cmd = findCommandByFlatIdx(paletteIdx);
+        if (cmd) { cmd.run(); closePalette(); }
+      }
+    }
+    return;
+  }
+
+  // Alt shortcuts (only when not typing in a text input)
+  if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+    const numMap = { '1': 'dashboard', '2': 'keys', '3': 'contacts', '4': 'encrypt', '5': 'decrypt', '6': 'sign', '7': 'verify', '8': 'shred' };
+    if (numMap[e.key]) { e.preventDefault(); navigateTo(numMap[e.key]); return; }
+    if (e.key.toLowerCase() === 'e') { e.preventDefault(); navigateTo('encrypt'); return; }
+    if (e.key.toLowerCase() === 'd') { e.preventDefault(); navigateTo('decrypt'); return; }
+    if (e.key.toLowerCase() === 'k') { e.preventDefault(); navigateTo('shortcuts'); return; }
+    if (e.key.toLowerCase() === 'h') { e.preventDefault(); navigateTo('help'); return; }
+    if (e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      document.querySelectorAll('input[type="password"]').forEach(inp => { inp.type = inp.type === 'password' ? 'text' : 'password'; });
+      return;
+    }
+    if (e.key.toLowerCase() === '/') { e.preventDefault(); openPalette(); return; }
+  }
+
+  // Global focus-enhanced: "/" when not typing => open palette
+  if (!isTyping && e.key === '/') {
+    e.preventDefault();
+    openPalette();
+  }
+});
+
+/* ========== Sidebar search filter ========== */
+function setupSidebarSearch() {
+  const input = document.getElementById('sidebarSearch');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.toLowerCase().trim();
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const text = (item.textContent || '').toLowerCase();
+      item.classList.toggle('hidden', q !== '' && !text.includes(q));
+    });
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { input.value = ''; input.dispatchEvent(new Event('input')); }
+    if (e.key === 'Enter') {
+      const visible = document.querySelector('.nav-item:not(.hidden)');
+      if (visible) { visible.click(); e.preventDefault(); }
+    }
+  });
+}
+
+/* ========== Tour tip ========== */
+function showTourIfNeeded() {
+  if (localStorage.getItem('cryptovault_tour_seen')) return;
+  localStorage.setItem('cryptovault_tour_seen', '1');
+  setTimeout(() => {
+    const tip = document.createElement('div');
+    tip.className = 'tour-tip';
+    tip.innerHTML = `
+      <div class="tour-title">👋 欢迎使用 CryptoVault</div>
+      <div>按 <kbd style="font-family:var(--font-mono);font-size:10px;background:var(--bg-deep);padding:1px 5px;border-radius:3px;border:1px solid var(--border);color:var(--accent)">Ctrl+K</kbd> 打开命令面板；在侧边栏搜索框输入关键字可过滤菜单。</div>
+      <div class="tour-actions">
+        <button class="btn btn-primary btn-sm" id="tourGo">试试命令面板</button>
+        <button class="btn btn-secondary btn-sm" id="tourClose">知道了</button>
+      </div>`;
+    document.body.appendChild(tip);
+    tip.style.top = '84px';
+    tip.style.left = '260px';
+    const finish = () => tip.remove();
+    tip.querySelector('#tourClose').onclick = finish;
+    tip.querySelector('#tourGo').onclick = () => { finish(); openPalette(); };
+    setTimeout(finish, 6000);
+  }, 800);
+}
+
+window.addEventListener('load', () => {
+  loadStatus();
+  setupAutocomplete('.autocomplete-keys', () => cachedKeys.map(k => k.name));
+  setupAutocomplete('.autocomplete-contacts', () => cachedContacts.map(c => c.nickname));
+  setupSidebarSearch();
+
+  const fab = document.getElementById('fabBtn');
+  if (fab) fab.addEventListener('click', openPalette);
+
+  const palInput = document.getElementById('paletteInput');
+  if (palInput) palInput.addEventListener('input', (e) => renderPalette(e.target.value));
+
+  const overlay = document.getElementById('paletteOverlay');
+  if (overlay) {
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closePalette(); });
+  }
+
+  showTourIfNeeded();
+});
+</script>
+</body>
+</html>
