@@ -8,12 +8,15 @@ from .database import Database
 from .organizer import OrganizerEngine
 from .templates import TemplateManager
 from .file_operator import FileOperation
+from .smart_recommend import SmartRecommenderEngine
+from .exporter import ExportOptions
 
 
 class CLI:
     def __init__(self):
         self.db = Database()
         self.engine = OrganizerEngine(db=self.db)
+        self.smart_engine = SmartRecommenderEngine(db=self.db)
 
     def run(self, args=None):
         parser = self._create_parser()
@@ -41,6 +44,9 @@ class CLI:
   file-organizer rules list
   file-organizer templates list
   file-organizer templates apply extension_sort
+  file-organizer recommend analyze ~/projects/myapp
+  file-organizer recommend analyze --export report.md ~/projects/myapp
+  file-organizer recommend apply ~/projects/myapp
             """
         )
 
@@ -55,6 +61,7 @@ class CLI:
         self._add_templates_parser(subparsers)
         self._add_logs_parser(subparsers)
         self._add_test_parser(subparsers)
+        self._add_recommend_parser(subparsers)
 
         return parser
 
@@ -136,6 +143,33 @@ class CLI:
         parser.add_argument("rule_id", type=int, help="规则ID")
         parser.add_argument("files", nargs="+", help="要测试的文件路径")
         parser.set_defaults(func=self._cmd_test)
+
+    def _add_recommend_parser(self, subparsers):
+        parser = subparsers.add_parser("recommend", help="智能推荐分析")
+        rec_sub = parser.add_subparsers(dest="recommend_command")
+
+        analyze_parser = rec_sub.add_parser("analyze", help="分析目录并生成推荐建议")
+        analyze_parser.add_argument("directory", help="要分析的目录路径")
+        analyze_parser.add_argument("--export", "-e", help="导出报告到文件 (支持 .md, .json, .yaml)")
+        analyze_parser.add_argument("--format", "-f", choices=["text", "json", "markdown"],
+                                   default="text", help="输出格式 (默认: text)")
+        analyze_parser.add_argument("--apply", "-a", action="store_true",
+                                   help="分析完成后自动应用生成的规则")
+        analyze_parser.add_argument("--no-incremental", action="store_true",
+                                   help="禁用增量分析，执行完整扫描")
+        analyze_parser.add_argument("--quiet", "-q", action="store_true", help="安静模式")
+        analyze_parser.set_defaults(func=self._cmd_recommend_analyze)
+
+        apply_parser = rec_sub.add_parser("apply", help="分析并自动应用推荐规则")
+        apply_parser.add_argument("directory", help="要分析的目录路径")
+        apply_parser.add_argument("--quiet", "-q", action="store_true", help="安静模式")
+        apply_parser.set_defaults(func=self._cmd_recommend_apply)
+
+        export_parser = rec_sub.add_parser("export", help="分析并导出报告")
+        export_parser.add_argument("directory", help="要分析的目录路径")
+        export_parser.add_argument("output", help="输出文件路径")
+        export_parser.add_argument("--quiet", "-q", action="store_true", help="安静模式")
+        export_parser.set_defaults(func=self._cmd_recommend_export)
 
     def _cmd_organize(self, args):
         if not args.quiet:
@@ -402,6 +436,157 @@ class CLI:
         print(f"匹配: {matched}/{len(results)} 个文件")
 
         return 0
+
+    def _cmd_recommend_analyze(self, args):
+        if not args.quiet:
+            print("智能推荐分析")
+            print(f"分析目录: {args.directory}")
+            print("-" * 60)
+
+        use_incremental = not args.no_incremental
+
+        def on_progress(msg):
+            if not args.quiet:
+                print(f"  ... {msg}")
+
+        try:
+            result = self.smart_engine.analyze(
+                args.directory,
+                use_incremental=use_incremental,
+                on_progress=on_progress,
+            )
+        except Exception as e:
+            print(f"分析失败: {e}")
+            return 1
+
+        rec_result = result.recommendation_result
+
+        if not args.quiet:
+            print("-" * 60)
+
+        if args.format == "json":
+            print(json.dumps(rec_result.to_dict(), indent=2, ensure_ascii=False))
+        elif args.format == "markdown":
+            from .exporter import RuleExporter
+            exporter = RuleExporter(rec_result)
+            print(exporter.to_markdown())
+        else:
+            if not args.quiet:
+                stats = rec_result.statistics
+                scanned = stats.get("total_scanned", {})
+                print("扫描结果:")
+                print(f"  文件数: {scanned.get('files', 0)}")
+                print(f"  目录数: {scanned.get('directories', 0)}")
+                print(f"  最大深度: {scanned.get('max_depth', 0)}")
+                print()
+
+            print(f"\n共生成 {len(rec_result.recommendations)} 条推荐建议:")
+            print()
+            severity_icons = {"critical": "🔴", "high": "🟠", "warning": "🟡", "info": "🔵", "suggestion": "⚪"}
+            for rec in rec_result.recommendations:
+                icon = severity_icons.get(rec.severity, "•")
+                print(f"  {icon} [{rec.severity.upper()} {rec.title}")
+                print(f"      分类: {rec.category}")
+                print(f"      {rec.description[:100]}")
+                print()
+
+            if rec_result.recommended_structure and rec_result.recommended_structure.directories:
+                print("推荐目录结构:")
+                for d in rec_result.recommended_structure.directories:
+                    print(f"  - {d}/")
+                print()
+
+            if rec_result.naming_convention:
+                nc = rec_result.naming_convention
+                current = nc.get("current_state", {})
+                print("命名规范分析:")
+                print(f"  主流风格: {current.get('dominant_pattern', 'N/A')}")
+                print(f"  一致性: {current.get('consistency_score', 0):.0%}")
+                print()
+
+        if args.export:
+            try:
+                path = self.smart_engine.export(rec_result, args.export)
+                if not args.quiet:
+                    print(f"报告已导出: {path}")
+            except Exception as e:
+                print(f"导出失败: {e}")
+
+        if args.apply:
+            try:
+                rule_ids = self.smart_engine.apply_generated_rules(rec_result)
+                if not args.quiet:
+                    print(f"已应用 {len(rule_ids)} 条规则")
+            except Exception as e:
+                print(f"应用规则失败: {e}")
+
+        if result.is_incremental and not args.quiet:
+            diff = result.incremental_diff
+            if diff:
+                changes = diff.summary
+                print()
+                print(f"增量变更: +{changes.get('added', 0)} 新增, {changes.get('modified', 0)} 修改, -{changes.get('removed', 0)} 删除")
+
+        return 0
+
+    def _cmd_recommend_apply(self, args):
+        if not args.quiet:
+            print("智能推荐 - 分析并应用规则")
+            print(f"分析目录: {args.directory}")
+            print("-" * 60)
+
+        def on_progress(msg):
+            if not args.quiet:
+                print(f"  ... {msg}")
+
+        try:
+            result = self.smart_engine.analyze(args.directory, on_progress=on_progress)
+        except Exception as e:
+            print(f"分析失败: {e}")
+            return 1
+
+        rec_result = result.recommendation_result
+
+        if not rec_result.generated_rules:
+            print("没有可应用的规则")
+            return 0
+
+        try:
+            rule_ids = self.smart_engine.apply_generated_rules(rec_result)
+            if not args.quiet:
+                print("-" * 60)
+                print(f"已成功应用 {len(rule_ids)} 条推荐规则:")
+                for rid in rule_ids:
+                    rule = self.db.get_rule(rid)
+                    if rule:
+                        print(f"  - [{rid}] {rule['name']}")
+            return 0
+        except Exception as e:
+            print(f"应用规则失败: {e}")
+            return 1
+
+    def _cmd_recommend_export(self, args):
+        if not args.quiet:
+            print("智能推荐 - 导出报告")
+            print(f"分析目录: {args.directory}")
+            print(f"输出文件: {args.output}")
+            print("-" * 60)
+
+        def on_progress(msg):
+            if not args.quiet:
+                print(f"  ... {msg}")
+
+        try:
+            result = self.smart_engine.analyze(args.directory, on_progress=on_progress)
+            path = self.smart_engine.export(result.recommendation_result, args.output)
+            if not args.quiet:
+                print("-" * 60)
+                print(f"报告已成功导出到:")
+                print(f"  {path}")
+            return 0
+        except Exception as e:
+            print(f"导出失败: {e}")
+            return 1
 
 
 def main():

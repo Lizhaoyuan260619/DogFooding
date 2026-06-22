@@ -8,6 +8,8 @@ from .database import Database
 from .organizer import OrganizerEngine
 from .templates import TemplateManager
 from .file_operator import FileOperation
+from .smart_recommend import SmartRecommenderEngine
+from .exporter import ExportOptions, RuleExporter
 
 
 class FileOrganizerApp:
@@ -21,7 +23,9 @@ class FileOrganizerApp:
 
         self.db = Database()
         self.engine = OrganizerEngine(db=self.db)
+        self.smart_engine = SmartRecommenderEngine(db=self.db)
         self.selected_dirs = []
+        self._last_smart_result = None
 
         self._setup_style()
         self._create_menu()
@@ -58,6 +62,8 @@ class FileOrganizerApp:
         tools_menu = tk.Menu(menubar, tearoff=0)
         tools_menu.add_command(label="操作日志", command=self._show_logs_dialog)
         tools_menu.add_command(label="撤销操作", command=self._undo_dialog)
+        tools_menu.add_separator()
+        tools_menu.add_command(label="智能推荐分析", command=self._smart_analyze_dialog)
         menubar.add_cascade(label="工具", menu=tools_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -100,6 +106,8 @@ class FileOrganizerApp:
         ttk.Checkbutton(bottom_frame, text="包含子目录",
                        variable=self.recursive_var).pack(side=tk.LEFT, padx=20)
 
+        ttk.Button(bottom_frame, text="智能推荐",
+                  command=self._smart_analyze_dialog, width=12).pack(side=tk.RIGHT, padx=5)
         ttk.Button(bottom_frame, text="开始整理", style="Accent.TButton",
                   command=self._start_organize, width=15).pack(side=tk.RIGHT)
 
@@ -248,7 +256,15 @@ class FileOrganizerApp:
         messagebox.showinfo("关于",
             "文件自动整理工具 v1.0.0\n\n"
             "智能分类、整理和管理您的文件\n"
-            "支持自定义规则、模板、干跑模式和撤销功能")
+            "支持自定义规则、模板、干跑模式和撤销功能\n\n"
+            "智能推荐模块：自动分析项目结构并生成优化建议")
+
+    def _smart_analyze_dialog(self):
+        SmartAnalyzeDialog(self.root, self.smart_engine,
+                           self.selected_dirs, on_result=self._on_smart_result)
+
+    def _on_smart_result(self, result):
+        self._last_smart_result = result
 
     def _start_organize(self):
         if not self.selected_dirs:
@@ -1093,6 +1109,528 @@ class HelpDialog:
 
         ttk.Button(self.dialog, text="关闭", command=self.dialog.destroy,
                   width=15).pack(pady=10)
+
+
+class SmartAnalyzeDialog:
+    def __init__(self, parent, engine: SmartRecommenderEngine,
+                 selected_dirs: List[str], on_result=None):
+        self.engine = engine
+        self.selected_dirs = selected_dirs
+        self.on_result = on_result
+        self.result = None
+
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("智能推荐分析")
+        self.dialog.geometry("1000x700")
+        self.dialog.minsize(900, 600)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+
+        self._create_widgets()
+
+        if self.selected_dirs:
+            self._start_analysis(self.selected_dirs[0])
+
+    def _create_widgets(self):
+        main_frame = ttk.Frame(self.dialog, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        header = ttk.Frame(main_frame)
+        header.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(header, text="智能推荐分析", style="Title.TLabel").pack(side=tk.LEFT)
+
+        dir_frame = ttk.Frame(main_frame)
+        dir_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(dir_frame, text="分析目录:").pack(side=tk.LEFT)
+        self.dir_var = tk.StringVar()
+        self.dir_entry = ttk.Entry(dir_frame, textvariable=self.dir_var, width=60)
+        self.dir_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        ttk.Button(dir_frame, text="浏览...", command=self._browse_dir, width=8).pack(side=tk.LEFT)
+        self.analyze_btn = ttk.Button(dir_frame, text="开始分析",
+                                      command=self._on_analyze_click, width=10)
+        self.analyze_btn.pack(side=tk.LEFT, padx=5)
+
+        self.progress_var = tk.StringVar(value="请选择要分析的目录")
+        ttk.Label(main_frame, textvariable=self.progress_var,
+                 foreground="gray").pack(anchor=tk.W, pady=(0, 5))
+
+        self.progress_bar = ttk.Progressbar(main_frame, mode='indeterminate')
+
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+
+        self._create_recommendations_tab()
+        self._create_structure_tab()
+        self._create_naming_tab()
+        self._create_modules_tab()
+        self._create_stats_tab()
+
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X, pady=(10, 0))
+        ttk.Button(btn_frame, text="导出报告", command=self._export_report,
+                  width=12).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="应用推荐规则", command=self._apply_rules,
+                  width=14).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="关闭", command=self.dialog.destroy,
+                  width=12).pack(side=tk.RIGHT)
+
+    def _create_recommendations_tab(self):
+        tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(tab, text="推荐建议")
+
+        filter_frame = ttk.Frame(tab)
+        filter_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(filter_frame, text="筛选:").pack(side=tk.LEFT)
+        self.severity_var = tk.StringVar(value="全部")
+        severity_combo = ttk.Combobox(filter_frame, textvariable=self.severity_var,
+                                     state="readonly", width=10)
+        severity_combo['values'] = ["全部", "critical", "high", "warning", "info", "suggestion"]
+        severity_combo.pack(side=tk.LEFT, padx=5)
+        severity_combo.bind('<<ComboboxSelected>>', lambda e: self._refresh_recommendations())
+
+        columns = ("severity", "category", "title")
+        self.rec_tree = ttk.Treeview(tab, columns=columns, show="headings", height=15)
+        self.rec_tree.heading("severity", text="级别")
+        self.rec_tree.heading("category", text="分类")
+        self.rec_tree.heading("title", text="标题")
+        self.rec_tree.column("severity", width=80, anchor=tk.CENTER)
+        self.rec_tree.column("category", width=100, anchor=tk.CENTER)
+        self.rec_tree.column("title", width=500)
+        self.rec_tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+
+        rec_scroll = ttk.Scrollbar(tab, orient=tk.VERTICAL, command=self.rec_tree.yview)
+        rec_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.rec_tree.configure(yscrollcommand=rec_scroll.set)
+        self.rec_tree.bind('<<TreeviewSelect>>', self._on_rec_select)
+
+        self.rec_detail = scrolledtext.ScrolledText(tab, height=8, wrap=tk.WORD)
+        self.rec_detail.pack(fill=tk.X, pady=(10, 0))
+
+    def _create_structure_tab(self):
+        tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(tab, text="结构对比")
+
+        paned = ttk.Panedwindow(tab, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+
+        left = ttk.LabelFrame(paned, text="当前结构", padding="10")
+        paned.add(left, weight=1)
+        self.current_tree = ttk.Treeview(left, show="tree")
+        self.current_tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        cur_scroll = ttk.Scrollbar(left, orient=tk.VERTICAL, command=self.current_tree.yview)
+        cur_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.current_tree.configure(yscrollcommand=cur_scroll.set)
+
+        right = ttk.LabelFrame(paned, text="推荐结构", padding="10")
+        paned.add(right, weight=1)
+        self.recommended_tree = ttk.Treeview(right, show="tree")
+        self.recommended_tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        rec_scroll = ttk.Scrollbar(right, orient=tk.VERTICAL, command=self.recommended_tree.yview)
+        rec_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.recommended_tree.configure(yscrollcommand=rec_scroll.set)
+
+        self.structure_summary = ttk.Label(tab, text="", foreground="gray")
+        self.structure_summary.pack(anchor=tk.W, pady=(10, 0))
+
+        mapping_frame = ttk.LabelFrame(tab, text="文件移动映射", padding="10")
+        mapping_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        map_columns = ("source", "target", "action")
+        self.mapping_tree = ttk.Treeview(mapping_frame, columns=map_columns, show="headings", height=6)
+        self.mapping_tree.heading("source", text="源路径")
+        self.mapping_tree.heading("target", text="目标路径")
+        self.mapping_tree.heading("action", text="操作")
+        self.mapping_tree.column("source", width=350)
+        self.mapping_tree.column("target", width=350)
+        self.mapping_tree.column("action", width=80, anchor=tk.CENTER)
+        self.mapping_tree.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
+        map_scroll = ttk.Scrollbar(mapping_frame, orient=tk.VERTICAL, command=self.mapping_tree.yview)
+        map_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.mapping_tree.configure(yscrollcommand=map_scroll.set)
+
+    def _create_naming_tab(self):
+        tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(tab, text="命名规范")
+
+        self.naming_info = scrolledtext.ScrolledText(tab, wrap=tk.WORD, height=30)
+        self.naming_info.pack(fill=tk.BOTH, expand=True)
+
+    def _create_modules_tab(self):
+        tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(tab, text="模块边界")
+
+        columns = ("name", "files", "internal", "external", "cohesion")
+        self.module_tree = ttk.Treeview(tab, columns=columns, show="headings", height=10)
+        self.module_tree.heading("name", text="模块名")
+        self.module_tree.heading("files", text="文件数")
+        self.module_tree.heading("internal", text="内部依赖")
+        self.module_tree.heading("external", text="外部依赖")
+        self.module_tree.heading("cohesion", text="内聚度")
+        self.module_tree.column("name", width=200)
+        self.module_tree.column("files", width=80, anchor=tk.CENTER)
+        self.module_tree.column("internal", width=80, anchor=tk.CENTER)
+        self.module_tree.column("external", width=80, anchor=tk.CENTER)
+        self.module_tree.column("cohesion", width=100, anchor=tk.CENTER)
+        self.module_tree.pack(fill=tk.BOTH, expand=True)
+
+        self.module_detail = scrolledtext.ScrolledText(tab, height=10, wrap=tk.WORD)
+        self.module_detail.pack(fill=tk.X, pady=(10, 0))
+
+    def _create_stats_tab(self):
+        tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(tab, text="统计信息")
+
+        self.stats_text = scrolledtext.ScrolledText(tab, wrap=tk.WORD, height=30)
+        self.stats_text.pack(fill=tk.BOTH, expand=True)
+
+    def _browse_dir(self):
+        directory = filedialog.askdirectory(title="选择要分析的目录")
+        if directory:
+            self.dir_var.set(directory)
+
+    def _on_analyze_click(self):
+        target = self.dir_var.get().strip()
+        if not target:
+            messagebox.showinfo("提示", "请先选择要分析的目录")
+            return
+        if not os.path.isdir(target):
+            messagebox.showerror("错误", "目录不存在")
+            return
+        self._start_analysis(target)
+
+    def _start_analysis(self, target_dir: str):
+        self.dir_var.set(target_dir)
+        self.analyze_btn.config(state=tk.DISABLED)
+        self.progress_bar.pack(fill=tk.X, pady=(0, 10))
+        self.progress_bar.start(20)
+        self.progress_var.set("分析中...")
+
+        def run():
+            def on_progress(msg):
+                self.dialog.after(0, lambda: self.progress_var.set(msg))
+
+            try:
+                result = self.engine.analyze(target_dir, on_progress=on_progress)
+                self.dialog.after(0, lambda: self._on_analysis_done(result))
+            except Exception as e:
+                self.dialog.after(0, lambda: self._on_analysis_error(str(e)))
+
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+
+    def _on_analysis_done(self, result):
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+        self.analyze_btn.config(state=tk.NORMAL)
+        self.result = result
+        if self.on_result:
+            self.on_result(result)
+
+        self._populate_recommendations()
+        self._populate_structure()
+        self._populate_naming()
+        self._populate_modules()
+        self._populate_stats()
+
+        rec_count = len(result.recommendation_result.recommendations)
+        if result.is_incremental and result.incremental_diff:
+            changes = result.incremental_diff.summary
+            self.progress_var.set(
+                f"增量分析完成 - 新增: {changes.get('added', 0)}, "
+                f"修改: {changes.get('modified', 0)}, "
+                f"删除: {changes.get('removed', 0)}, "
+                f"共 {rec_count} 条推荐"
+            )
+        else:
+            self.progress_var.set(f"分析完成 - 生成 {rec_count} 条推荐建议")
+
+    def _on_analysis_error(self, error_msg):
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+        self.analyze_btn.config(state=tk.NORMAL)
+        self.progress_var.set(f"分析失败: {error_msg}")
+        messagebox.showerror("错误", f"分析失败: {error_msg}")
+
+    def _refresh_recommendations(self):
+        self._populate_recommendations()
+
+    def _populate_recommendations(self):
+        for item in self.rec_tree.get_children():
+            self.rec_tree.delete(item)
+
+        if not self.result:
+            return
+
+        filter_sev = self.severity_var.get()
+        severity_icons = {
+            "critical": "🔴 critical",
+            "high": "🟠 high",
+            "warning": "🟡 warning",
+            "info": "🔵 info",
+            "suggestion": "⚪ suggestion",
+        }
+
+        for rec in self.result.recommendation_result.recommendations:
+            if filter_sev != "全部" and rec.severity != filter_sev:
+                continue
+            self.rec_tree.insert("", tk.END, iid=rec.id, values=(
+                severity_icons.get(rec.severity, rec.severity),
+                rec.category,
+                rec.title,
+            ))
+
+    def _on_rec_select(self, event):
+        selection = self.rec_tree.selection()
+        if not selection or not self.result:
+            return
+
+        rec_id = selection[0]
+        rec = next((r for r in self.result.recommendation_result.recommendations
+                    if r.id == rec_id), None)
+        if not rec:
+            return
+
+        self.rec_detail.config(state=tk.NORMAL)
+        self.rec_detail.delete(1.0, tk.END)
+
+        text = f"【{rec.title}】\n\n"
+        text += f"描述: {rec.description}\n\n"
+        if rec.rationale:
+            text += f"理由: {rec.rationale}\n\n"
+        if rec.best_practice:
+            text += f"最佳实践: {rec.best_practice}\n\n"
+        if rec.affected_files:
+            text += f"受影响文件 ({len(rec.affected_files)} 个):\n"
+            for f in rec.affected_files[:15]:
+                text += f"  - {f}\n"
+            if len(rec.affected_files) > 15:
+                text += f"  ... 等 {len(rec.affected_files)} 个文件\n"
+
+        self.rec_detail.insert(1.0, text)
+        self.rec_detail.config(state=tk.DISABLED)
+
+    def _populate_structure(self):
+        for item in self.current_tree.get_children():
+            self.current_tree.delete(item)
+        for item in self.recommended_tree.get_children():
+            self.recommended_tree.delete(item)
+        for item in self.mapping_tree.get_children():
+            self.mapping_tree.delete(item)
+
+        if not self.result:
+            return
+
+        comparison = self.engine.get_structure_comparison(self.result)
+
+        self._build_tree_view(self.current_tree, "", comparison["current_tree"])
+
+        rec_root = self.recommended_tree.insert("", tk.END,
+            text=os.path.basename(comparison["root_path"]), open=True)
+        for d in comparison["recommended_directories"]:
+            self._add_dir_tree(self.recommended_tree, rec_root, d)
+
+        for m in comparison["file_mappings"]:
+            self.mapping_tree.insert("", tk.END, values=(
+                m["source_display"],
+                m["target_display"],
+                m["action"],
+            ))
+
+        stats = comparison["stats"]
+        summary = comparison["summary"]
+        self.structure_summary.config(
+            text=f"统计: {stats['total_files']} 个文件, {stats['total_dirs']} 个目录, "
+                 f"总大小: {self._format_size(stats['total_size'])} | "
+                 f"建议移动: {summary.get('total_files_to_move', 0)} 个文件, "
+                 f"新建目录: {len(summary.get('new_directories', []))} 个"
+        )
+
+    def _add_dir_tree(self, tree, parent, path):
+        parts = path.split("/")
+        current = parent
+        for part in parts:
+            children = tree.get_children(current)
+            found = None
+            for c in children:
+                if tree.item(c, "text") == part:
+                    found = c
+                    break
+            if found is None:
+                current = tree.insert(current, tk.END, text=part + "/", open=True)
+            else:
+                current = found
+
+    def _build_tree_view(self, tree, parent, node):
+        if not node:
+            return
+        name = node.get("name", "")
+        if node.get("is_dir", False):
+            name += "/"
+        display = name
+        if node.get("truncated_children", 0) > 0:
+            display += f" ...(+{node['truncated_children']})"
+        item = tree.insert(parent, tk.END, text=display, open=(node.get("depth", 0) < 2))
+        for child in node.get("children", []):
+            self._build_tree_view(tree, item, child)
+
+    def _populate_naming(self):
+        self.naming_info.config(state=tk.NORMAL)
+        self.naming_info.delete(1.0, tk.END)
+
+        if not self.result:
+            return
+
+        nc = self.result.recommendation_result.naming_convention
+        current = nc.get("current_state", {})
+
+        text = "=== 命名规范分析 ===\n\n"
+        text += "【当前状态】\n"
+        text += f"  主流命名风格: {current.get('dominant_pattern', 'N/A')}\n"
+        text += f"  一致性评分: {current.get('consistency_score', 0):.0%}\n\n"
+
+        patterns = current.get("pattern_distribution", {})
+        if patterns:
+            text += "【各风格文件数量】\n"
+            for pat, count in sorted(patterns.items(), key=lambda x: -x[1]):
+                text += f"  {pat}: {count}\n"
+            text += "\n"
+
+        recs = nc.get("recommendations", {})
+        if recs:
+            text += "【推荐规范】\n"
+            for lang, rules in recs.items():
+                if lang.startswith("_"):
+                    continue
+                text += f"\n  {lang}:\n"
+                for k, v in rules.items():
+                    text += f"    {k}: {v}\n"
+
+        self.naming_info.insert(1.0, text)
+        self.naming_info.config(state=tk.DISABLED)
+
+    def _populate_modules(self):
+        for item in self.module_tree.get_children():
+            self.module_tree.delete(item)
+
+        if not self.result:
+            return
+
+        for mod in self.result.recommendation_result.module_boundaries:
+            self.module_tree.insert("", tk.END, iid=mod["id"], values=(
+                mod.get("name", "Unknown"),
+                mod.get("file_count", 0),
+                mod.get("internal_dependencies", 0),
+                mod.get("external_dependencies", 0),
+                f"{mod.get('cohesion_score', 0):.0%}",
+            ))
+
+    def _populate_stats(self):
+        self.stats_text.config(state=tk.NORMAL)
+        self.stats_text.delete(1.0, tk.END)
+
+        if not self.result:
+            return
+
+        stats = self.result.recommendation_result.statistics
+        scan = self.result.scan_result
+
+        text = "=== 项目分析统计 ===\n\n"
+        scanned = stats.get("total_scanned", {})
+        text += "【概览】\n"
+        text += f"  扫描目录: {scan.root_path}\n"
+        text += f"  扫描时间: {scan.scan_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        text += f"  总文件数: {scanned.get('files', 0)}\n"
+        text += f"  总目录数: {scanned.get('directories', 0)}\n"
+        text += f"  总大小: {self._format_size(scanned.get('total_size_bytes', 0))}\n"
+        text += f"  最大嵌套深度: {scanned.get('max_depth', 0)}\n"
+        text += f"  平均每目录文件数: {scanned.get('avg_files_per_dir', 0)}\n\n"
+
+        dist = stats.get("distribution", {})
+        cats = dist.get("by_category", {})
+        if cats:
+            text += "【按类型分布】\n"
+            for cat, count in sorted(cats.items(), key=lambda x: -x[1]):
+                pct = count / max(scanned.get('files', 1), 1) * 100
+                text += f"  {cat}: {count} ({pct:.1f}%)\n"
+            text += "\n"
+
+        exts = dist.get("by_extension", {})
+        if exts:
+            text += "【Top 扩展名】\n"
+            for ext, count in list(exts.items())[:15]:
+                text += f"  .{ext}: {count}\n"
+            text += "\n"
+
+        sizes = dist.get("by_size_bucket", {})
+        if sizes:
+            text += "【按大小分布】\n"
+            for bucket, count in sizes.items():
+                text += f"  {bucket}: {count}\n"
+            text += "\n"
+
+        rec_stats = stats.get("recommendations", {})
+        text += "【推荐统计】\n"
+        text += f"  总建议数: {rec_stats.get('total', 0)}\n"
+        by_sev = rec_stats.get("by_severity", {})
+        for sev, count in by_sev.items():
+            text += f"    {sev}: {count}\n"
+
+        text += f"\n  检测模块数: {stats.get('modules_detected', 0)}\n"
+        text += f"  异常数: {stats.get('anomalies', 0)}\n"
+
+        self.stats_text.insert(1.0, text)
+        self.stats_text.config(state=tk.DISABLED)
+
+    def _export_report(self):
+        if not self.result:
+            messagebox.showinfo("提示", "请先完成分析")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="导出推荐报告",
+            defaultextension=".md",
+            filetypes=[
+                ("Markdown 报告", "*.md"),
+                ("JSON 格式", "*.json"),
+                ("YAML 格式", "*.yaml"),
+                ("所有文件", "*.*"),
+            ],
+            initialfile="file_organizer_recommendations"
+        )
+        if not file_path:
+            return
+
+        try:
+            self.engine.export(self.result.recommendation_result, file_path)
+            messagebox.showinfo("成功", f"报告已导出到:\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("错误", f"导出失败: {e}")
+
+    def _apply_rules(self):
+        if not self.result:
+            messagebox.showinfo("提示", "请先完成分析")
+            return
+
+        rules = self.result.recommendation_result.generated_rules
+        if not rules:
+            messagebox.showinfo("提示", "没有可应用的规则")
+            return
+
+        if messagebox.askyesno("确认", f"确定要应用 {len(rules)} 条推荐规则吗？"):
+            try:
+                rule_ids = self.engine.apply_generated_rules(self.result.recommendation_result)
+                messagebox.showinfo("成功", f"已应用 {len(rule_ids)} 条规则\n请在规则管理中查看")
+            except Exception as e:
+                messagebox.showerror("错误", f"应用失败: {e}")
+
+    def _format_size(self, size_bytes: int) -> str:
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / 1024 / 1024:.1f} MB"
+        else:
+            return f"{size_bytes / 1024 / 1024 / 1024:.1f} GB"
 
 
 def main():
