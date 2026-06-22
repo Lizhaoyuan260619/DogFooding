@@ -15,6 +15,8 @@ from text_analyzer.analyzer.english_analyzer import EnglishTextAnalyzer
 from text_analyzer.analyzer.tfidf_analyzer import SklearnTfidfAnalyzer
 from text_analyzer.analyzer.similarity_analyzer import SimilarityAnalyzer
 from text_analyzer.analyzer.wordcloud_generator import WordCloudGenerator
+from text_analyzer.analyzer.entity_recognizer import EntityRecognizer
+from text_analyzer.analyzer.sentiment_analyzer import SentimentAnalyzer
 from text_analyzer.report.html_report import HTMLReportGenerator
 
 
@@ -28,16 +30,18 @@ class TextAnalyzerCLI:
         self.similarity_analyzer = SimilarityAnalyzer()
         self.wordcloud_generator = WordCloudGenerator()
         self.report_generator = HTMLReportGenerator()
+        self.entity_recognizer = EntityRecognizer()
+        self.sentiment_analyzer = SentimentAnalyzer()
 
     def print_banner(self):
         """打印欢迎横幅"""
         banner = """
 ╔══════════════════════════════════════════════════════════════╗
-║                文本分析工具 v1.0.0                           ║
+║                文本分析工具 v2.0.0                           ║
 ║           Text Analyzer Command Line Tool                    ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  支持中英文文本分析 | TF-IDF关键词提取 | 文档相似度比较     ║
-║  词云图生成 | HTML报告生成 | 历史记录管理                    ║
+║  词云图生成 | HTML报告生成 | 实体识别 | 情感分析 | Web界面  ║
 ╚══════════════════════════════════════════════════════════════╝
         """
         print(banner)
@@ -56,6 +60,9 @@ class TextAnalyzerCLI:
 【7】 批量文件处理 - 批量分析文件夹中的文件
 【8】 历史记录查询 - 查看分析历史
 【9】 数据库统计 - 查看数据库统计信息
+【10】实体识别 - 识别人物、组织、地点、时间、专有名词
+【11】情感分析 - 正负面情感分类及置信度评分
+【12】启动Web服务 - 图形化界面分析
 【0】 退出程序
 
 请输入选项编号："""
@@ -88,6 +95,12 @@ class TextAnalyzerCLI:
                     self.history_menu()
                 elif choice == "9":
                     self.show_db_stats()
+                elif choice == "10":
+                    self.entity_recognition_menu()
+                elif choice == "11":
+                    self.sentiment_analysis_menu()
+                elif choice == "12":
+                    self.start_web_server()
                 elif choice == "0":
                     print("\n感谢使用文本分析工具，再见！")
                     break
@@ -955,16 +968,296 @@ class TextAnalyzerCLI:
         for analysis_type, count in stats['analysis_by_type'].items():
             print(f"  {analysis_type}: {count} 条")
 
+    def entity_recognition_menu(self):
+        """实体识别菜单"""
+        print("\n" + "=" * 60)
+        print("【实体识别 - 支持5类关键实体识别】")
+        print("=" * 60)
+        print("支持实体类型：人物(PER)、组织(ORG)、地点(LOC)、时间(TIME)、专有名词(NOUN)")
+        print("-" * 60)
+        
+        while True:
+            try:
+                print("\n请选择输入方式：")
+                print("【1】 手动输入文本")
+                print("【2】 从文件读取")
+                print("【3】 批量分析文件夹")
+                print("【0】 返回主菜单")
+                sub_choice = input("请输入选项：").strip()
+                
+                if sub_choice == "0":
+                    return
+                elif sub_choice == "1":
+                    text = input("\n请输入要分析的文本：\n").strip()
+                    if text:
+                        self._do_entity_recognition(text, "手动输入文本")
+                elif sub_choice == "2":
+                    file_path = input("\n请输入文件路径：").strip()
+                    if file_path:
+                        text = read_file(file_path)
+                        file_info = get_file_info(file_path)
+                        self._do_entity_recognition(text, file_info['name'])
+                elif sub_choice == "3":
+                    folder_path = input("\n请输入文件夹路径：").strip()
+                    if folder_path:
+                        files = scan_folder(folder_path, extension=".txt")
+                        if not files:
+                            print("没有找到txt文件！")
+                            continue
+                        print(f"找到 {len(files)} 个文件，开始批量分析...\n")
+                        all_entities = []
+                        for idx, fp in enumerate(files, 1):
+                            try:
+                                text = read_file(fp)
+                                file_info = get_file_info(fp)
+                                result = self.entity_recognizer.recognize(text)
+                                all_entities.append((file_info['name'], result))
+                                print(f"[{idx}/{len(files)}] {file_info['name']}: "
+                                      f"识别到 {len(result['entities'])} 个实体")
+                            except Exception as e:
+                                print(f"[{idx}/{len(files)}] {fp} 分析失败: {e}")
+                        if all_entities:
+                            self._print_batch_entity_results(all_entities)
+                else:
+                    print("无效选项！")
+                    
+                if sub_choice in ["1", "2"]:
+                    cont = input("\n继续实体识别？(y/N): ").strip().lower()
+                    if cont != "y":
+                        return
+                        
+            except Exception as e:
+                print(f"操作失败：{e}")
+
+    def _do_entity_recognition(self, text: str, source_name: str):
+        """执行实体识别并显示结果"""
+        print(f"\n正在分析 \"{source_name}\"...")
+        result = self.entity_recognizer.recognize(text)
+        
+        db_manager.save_analysis_record({
+            'analysis_type': 'entity_recognition',
+            'source_name': source_name,
+            'text_length': len(text),
+            'result': str(result)
+        })
+        
+        self._print_entity_results(result)
+
+    def _print_entity_results(self, result: Dict):
+        """打印实体识别结果"""
+        type_info = self.entity_recognizer.get_entity_type_info()
+        
+        print("\n" + "=" * 60)
+        print("【实体识别结果】")
+        print("=" * 60)
+        print(f"语言: {result['language']}")
+        print(f"实体总数: {result['entity_count']}")
+        print(f"文本长度: {result['text_length']} 字符")
+        
+        print("\n按类型统计：")
+        for type_key, count in result['entity_counts_by_type'].items():
+            info = type_info.get(type_key, {'name': type_key})
+            print(f"  {info['name']}({type_key}): {count} 个")
+        
+        if result['entities']:
+            print("\n识别到的实体：")
+            print("-" * 60)
+            for idx, entity in enumerate(result['entities'], 1):
+                type_info_e = type_info.get(entity['type'], {'name': entity['type'], 'color': ''})
+                print(f"{idx:2d}. [{type_info_e['name']:4s}] {entity['text']:20s} "
+                      f"(置信度: {entity['confidence']:.2f})")
+        
+        print("\n高亮文本：")
+        print("-" * 60)
+        print(self._strip_html(result['highlight_html']))
+
+    def _print_batch_entity_results(self, all_results: List):
+        """打印批量实体识别结果"""
+        print("\n" + "=" * 70)
+        print("【批量实体识别结果汇总】")
+        print("=" * 70)
+        
+        total_entities = 0
+        type_summary = {}
+        
+        for name, result in all_results:
+            total_entities += result['entity_count']
+            for t, c in result['entity_counts_by_type'].items():
+                type_summary[t] = type_summary.get(t, 0) + c
+        
+        print(f"\n共分析 {len(all_results)} 个文件")
+        print(f"识别实体总数: {total_entities}")
+        
+        print("\n各类型汇总：")
+        type_info = self.entity_recognizer.get_entity_type_info()
+        for t, c in type_summary.items():
+            info = type_info.get(t, {'name': t})
+            print(f"  {info['name']}({t}): {c} 个")
+
+    def sentiment_analysis_menu(self):
+        """情感分析菜单"""
+        print("\n" + "=" * 60)
+        print("【情感分析 - 正负面二元分类+置信度评分】")
+        print("=" * 60)
+        print("准确率 ≥ 80% | 置信度范围: 0(完全负面) ~ 1(完全正面)")
+        print("-" * 60)
+        
+        while True:
+            try:
+                print("\n请选择输入方式：")
+                print("【1】 手动输入文本")
+                print("【2】 从文件读取")
+                print("【3】 批量分析文件夹")
+                print("【0】 返回主菜单")
+                sub_choice = input("请输入选项：").strip()
+                
+                if sub_choice == "0":
+                    return
+                elif sub_choice == "1":
+                    text = input("\n请输入要分析的文本：\n").strip()
+                    if text:
+                        self._do_sentiment_analysis(text, "手动输入文本")
+                elif sub_choice == "2":
+                    file_path = input("\n请输入文件路径：").strip()
+                    if file_path:
+                        text = read_file(file_path)
+                        file_info = get_file_info(file_path)
+                        self._do_sentiment_analysis(text, file_info['name'])
+                elif sub_choice == "3":
+                    folder_path = input("\n请输入文件夹路径：").strip()
+                    if folder_path:
+                        files = scan_folder(folder_path, extension=".txt")
+                        if not files:
+                            print("没有找到txt文件！")
+                            continue
+                        print(f"找到 {len(files)} 个文件，开始批量分析...\n")
+                        texts = []
+                        names = []
+                        for fp in files:
+                            try:
+                                texts.append(read_file(fp))
+                                fi = get_file_info(fp)
+                                names.append(fi['name'])
+                            except Exception as e:
+                                print(f"读取 {fp} 失败: {e}")
+                        
+                        if texts:
+                            results = self.sentiment_analyzer.analyze_batch(texts)
+                            self._print_batch_sentiment_results(names, results)
+                else:
+                    print("无效选项！")
+                    
+                if sub_choice in ["1", "2"]:
+                    cont = input("\n继续情感分析？(y/N): ").strip().lower()
+                    if cont != "y":
+                        return
+                        
+            except Exception as e:
+                print(f"操作失败：{e}")
+
+    def _do_sentiment_analysis(self, text: str, source_name: str):
+        """执行情感分析并显示结果"""
+        print(f"\n正在分析 \"{source_name}\"...")
+        result = self.sentiment_analyzer.analyze(text)
+        
+        db_manager.save_analysis_record({
+            'analysis_type': 'sentiment_analysis',
+            'source_name': source_name,
+            'text_length': len(text),
+            'result': str(result)
+        })
+        
+        self._print_sentiment_result(result)
+
+    def _print_sentiment_result(self, result: Dict):
+        """打印情感分析结果"""
+        print("\n" + "=" * 60)
+        print("【情感分析结果】")
+        print("=" * 60)
+        print(f"语言: {result['language']}")
+        print(f"情感分类: {'正面' if result['sentiment'] == 'positive' else '负面'}")
+        print(f"置信度: {result['confidence']:.4f}")
+        print(f"正面分数: {result['positive_score']:.4f}")
+        print(f"负面分数: {result['negative_score']:.4f}")
+        
+        bar_length = 40
+        pos_fill = int(result['confidence'] * bar_length)
+        neg_fill = bar_length - pos_fill
+        bar = "█" * pos_fill + "░" * neg_fill
+        
+        if result['sentiment'] == 'positive':
+            label = f"正面 {result['confidence']*100:.1f}%"
+        else:
+            label = f"负面 {(1-result['confidence'])*100:.1f}%"
+        
+        print(f"\n情感倾向: {bar} {label}")
+        
+        if 'positive_words' in result and result['positive_words']:
+            print(f"\n正面词汇: {', '.join(result['positive_words'][:10])}")
+        if 'negative_words' in result and result['negative_words']:
+            print(f"负面词汇: {', '.join(result['negative_words'][:10])}")
+
+    def _print_batch_sentiment_results(self, names: List[str], results: List[Dict]):
+        """打印批量情感分析结果"""
+        print("\n" + "=" * 70)
+        print("【批量情感分析结果汇总】")
+        print("=" * 70)
+        
+        pos_count = sum(1 for r in results if r['sentiment'] == 'positive')
+        neg_count = len(results) - pos_count
+        
+        print(f"\n共分析 {len(results)} 个文件")
+        print(f"正面: {pos_count} ({pos_count/len(results)*100:.1f}%)")
+        print(f"负面: {neg_count} ({neg_count/len(results)*100:.1f}%)")
+        
+        avg_conf = sum(r['confidence'] for r in results) / len(results)
+        print(f"平均置信度: {avg_conf:.4f}")
+        
+        print("\n详细结果：")
+        print("-" * 70)
+        for name, result in zip(names, results):
+            label = "正面" if result['sentiment'] == 'positive' else "负面"
+            print(f"  {name:30s} | {label:4s} | 置信度: {result['confidence']:.4f}")
+
+    def start_web_server(self):
+        """启动Web服务"""
+        print("\n" + "=" * 60)
+        print("【启动Web服务 - 图形化界面】")
+        print("=" * 60)
+        print("正在启动Flask Web服务器...")
+        print("服务将在 http://127.0.0.1:5000 运行")
+        print("按 Ctrl+C 停止服务")
+        print("-" * 60 + "\n")
+        
+        try:
+            from app import app
+            app.run(host='127.0.0.1', port=5000, debug=False)
+        except KeyboardInterrupt:
+            print("\n\nWeb服务已停止")
+        except ImportError:
+            print("错误: 无法导入app模块，请确保app.py存在")
+        except Exception as e:
+            print(f"启动Web服务失败: {e}")
+
+    def _strip_html(self, html_text: str) -> str:
+        """去除HTML标签用于终端显示"""
+        import re
+        text = re.sub(r'<[^>]+>', '', html_text)
+        return text
+
 
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description="文本分析工具 - 支持中英文文本分析、TF-IDF、相似度比较、词云图生成",
+        description="文本分析工具 v2.0 - 支持中英文文本分析、TF-IDF、相似度比较、词云图生成、实体识别、情感分析、Web界面",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
   python -m text_analyzer                    # 启动交互式菜单
   python -m text_analyzer --file input.txt   # 分析单个文件
+  python -m text_analyzer --web              # 启动Web服务
+  python -m text_analyzer --entity --text "张三在北京工作"  # 实体识别
+  python -m text_analyzer --sentiment --text "今天天气真好" # 情感分析
         """
     )
 
@@ -980,6 +1273,10 @@ def main():
     parser.add_argument("--similarity", nargs=2, metavar=("FILE1", "FILE2"),
                         help="比较两个文件的相似度")
     parser.add_argument("--batch", "-b", help="批量处理文件夹")
+    parser.add_argument("--web", action="store_true", help="启动Web图形化界面")
+    parser.add_argument("--entity", action="store_true", help="进行实体识别")
+    parser.add_argument("--sentiment", action="store_true", help="进行情感分析")
+    parser.add_argument("--text", "-t", help="直接输入文本进行分析")
 
     args = parser.parse_args()
 
@@ -990,6 +1287,35 @@ def main():
             text2 = read_file(args.similarity[1])
             sim = cli.similarity_analyzer.tfidf_similarity(text1, text2)
             print(f"相似度: {sim * 100:.2f}%")
+        except Exception as e:
+            print(f"错误: {e}")
+        return
+
+    if args.web:
+        cli = TextAnalyzerCLI()
+        cli.start_web_server()
+        return
+
+    if args.entity or args.sentiment:
+        cli = TextAnalyzerCLI()
+        try:
+            text = ""
+            if args.text:
+                text = args.text
+            elif args.file:
+                text = read_file(args.file)
+            else:
+                print("请使用 --text 指定文本或 --file 指定文件")
+                return
+
+            if args.entity:
+                result = cli.entity_recognizer.recognize(text)
+                cli._print_entity_results(result)
+
+            if args.sentiment:
+                result = cli.sentiment_analyzer.analyze(text)
+                cli._print_sentiment_result(result)
+
         except Exception as e:
             print(f"错误: {e}")
         return
