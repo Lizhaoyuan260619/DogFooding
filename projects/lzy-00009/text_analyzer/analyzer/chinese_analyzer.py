@@ -2,6 +2,7 @@
 中文文本分析模块 - 分词、词频统计、停用词过滤
 """
 import re
+import string
 from typing import List, Dict, Tuple, Optional
 from collections import Counter
 
@@ -12,6 +13,13 @@ from text_analyzer.utils.stopwords import stopwords_manager
 
 class ChineseTextAnalyzer:
     """中文文本分析器"""
+
+    _PUNCTUATION_PATTERN = re.compile(
+        r'[' + re.escape(string.punctuation) +
+        r'\u3000-\u303f\uff00-\uffef\u2000-\u206f' +
+        r'，。！？；：""''（）【】《》〈〉—…·' +
+        r']'
+    )
 
     def __init__(self):
         self._stopwords = stopwords_manager.get_chinese_stopwords()
@@ -64,14 +72,16 @@ class ChineseTextAnalyzer:
         Returns:
             分词结果列表
         """
+        cleaned_text = self._clean_punctuation(text)
+
         if use_paddle:
             try:
                 jieba.enable_paddle()
-                words = jieba.lcut(text, use_paddle=True)
+                words = jieba.lcut(cleaned_text, use_paddle=True)
             except Exception:
-                words = jieba.lcut(text)
+                words = jieba.lcut(cleaned_text)
         else:
-            words = jieba.lcut(text)
+            words = jieba.lcut(cleaned_text)
 
         words = [word.strip() for word in words if word.strip()]
 
@@ -83,10 +93,25 @@ class ChineseTextAnalyzer:
 
         return words
 
+    @classmethod
+    def _clean_punctuation(cls, text: str) -> str:
+        """
+        清理文本中的标点符号和特殊字符
+
+        Args:
+            text: 输入文本
+
+        Returns:
+            清理后的文本
+        """
+        text = cls._PUNCTUATION_PATTERN.sub(' ', text)
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
     @staticmethod
     def _is_valid_word(word: str) -> bool:
         """
-        判断词语是否有效（过滤标点符号、纯数字等）
+        判断词语是否有效（过滤标点符号、纯数字、空白字符等）
 
         Args:
             word: 词语
@@ -95,6 +120,11 @@ class ChineseTextAnalyzer:
             是否有效
         """
         if not word or not word.strip():
+            return False
+
+        word = word.strip()
+
+        if re.match(r'^[\d\s]+$', word):
             return False
 
         has_chinese = any('\u4e00' <= c <= '\u9fff' for c in word)

@@ -11,11 +11,62 @@ from text_analyzer.utils.stopwords import stopwords_manager
 class EnglishTextAnalyzer:
     """英文文本分析器"""
 
+    _nltk_data_ensured = False
+
     def __init__(self, stemmer_type: str = "porter"):
         self._stopwords = stopwords_manager.get_english_stopwords()
         self._custom_stopwords = set()
-        self._stemmer = self._get_stemmer(stemmer_type)
         self._stemmer_type = stemmer_type
+        self._stemmer = None
+        self._nltk_available = False
+        self._init_nltk()
+
+    @classmethod
+    def _ensure_nltk_data(cls):
+        """
+        确保NLTK必要数据已下载，首次运行时自动下载
+
+        下载的数据包括:
+        - punkt: 句子分割器
+        - punkt_tab: 新版句子分割器 (NLTK 3.9+)
+        - stopwords: 停用词表
+        """
+        if cls._nltk_data_ensured:
+            return
+
+        try:
+            import nltk
+
+            required_resources = [
+                ('tokenizers/punkt', 'punkt'),
+                ('tokenizers/punkt_tab', 'punkt_tab'),
+                ('corpora/stopwords', 'stopwords'),
+            ]
+
+            for resource_path, resource_name in required_resources:
+                try:
+                    nltk.data.find(resource_path)
+                except LookupError:
+                    try:
+                        nltk.download(resource_name, quiet=True)
+                    except Exception:
+                        pass
+
+            cls._nltk_data_ensured = True
+
+        except ImportError:
+            pass
+
+    def _init_nltk(self):
+        """初始化NLTK相关组件"""
+        try:
+            import nltk
+            self._ensure_nltk_data()
+            self._stemmer = self._get_stemmer(self._stemmer_type)
+            self._nltk_available = True
+        except ImportError:
+            self._nltk_available = False
+            self._stemmer = None
 
     @staticmethod
     def _get_stemmer(stemmer_type: str):
@@ -29,13 +80,7 @@ class EnglishTextAnalyzer:
             词干提取器实例
         """
         try:
-            import nltk
             from nltk.stem import PorterStemmer, LancasterStemmer, SnowballStemmer
-
-            try:
-                nltk.data.find('tokenizers/punkt')
-            except LookupError:
-                nltk.download('punkt', quiet=True)
 
             if stemmer_type == "porter":
                 return PorterStemmer()
@@ -99,12 +144,7 @@ class EnglishTextAnalyzer:
         if to_lower:
             text = text.lower()
 
-        try:
-            import nltk
-            words = nltk.word_tokenize(text)
-        except ImportError:
-            words = re.findall(r'\b\w+\b', text)
-
+        words = self._do_tokenize(text)
         words = [word for word in words if re.match(r'^[a-zA-Z]+$', word)]
 
         if use_stopwords:
@@ -112,6 +152,26 @@ class EnglishTextAnalyzer:
             words = [word for word in words if word not in stopwords]
 
         return words
+
+    def _do_tokenize(self, text: str) -> List[str]:
+        """
+        执行分词，优先使用NLTK，失败时降级到正则表达式
+
+        Args:
+            text: 输入文本
+
+        Returns:
+            分词结果列表
+        """
+        if self._nltk_available:
+            try:
+                import nltk
+                self._ensure_nltk_data()
+                return nltk.word_tokenize(text)
+            except Exception:
+                pass
+
+        return re.findall(r'\b[a-zA-Z]+\b', text)
 
     def stem(self, words: List[str]) -> List[str]:
         """
